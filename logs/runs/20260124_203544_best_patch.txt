@@ -1,0 +1,14 @@
+```diff
+diff --git a/src/requests/models.py b/src/requests/models.py
+index 1c9d6b8..a9e8f1b 100644
+--- a/src/requests/models.py
++++ b/src/requests/models.py
+@@ -35,6 +35,7 @@ from .utils import (
+     parse_header_links,
+     requote_uri,
+     stream_decode_response_unicode,
++    iter_slices,
+     super_len,
+     to_key_val_list,
+ )
+```

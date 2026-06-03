@@ -1,0 +1,588 @@
+{
+  "timestamp": "2026-04-13T23:14:15.475092",
+  "total": 50,
+  "passed": 36,
+  "pass_rate": 0.72,
+  "ci_low": 0.5833461285401034,
+  "ci_high": 0.8252598564231963,
+  "compile_errors": 14,
+  "runtime_errors": 0,
+  "test_failures": 0,
+  "skipped": 0,
+  "bug_type_stats": {
+    "wrong_data_structure": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_logic": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_condition": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_initialization": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_base_case": {
+      "total": 1,
+      "passed": 1
+    },
+    "missing_edge_case": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_operator": {
+      "total": 1,
+      "passed": 1
+    },
+    "version_compat": {
+      "total": 1,
+      "passed": 1
+    },
+    "type_conversion": {
+      "total": 26,
+      "passed": 14
+    },
+    "file_io": {
+      "total": 4,
+      "passed": 3
+    },
+    "index_error": {
+      "total": 1,
+      "passed": 1
+    },
+    "exception_handling": {
+      "total": 2,
+      "passed": 1
+    },
+    "initialization": {
+      "total": 1,
+      "passed": 1
+    },
+    "type_error": {
+      "total": 1,
+      "passed": 1
+    },
+    "function_call": {
+      "total": 1,
+      "passed": 1
+    },
+    "other": {
+      "total": 1,
+      "passed": 1
+    },
+    "condition_issue": {
+      "total": 1,
+      "passed": 1
+    },
+    "encoding": {
+      "total": 1,
+      "passed": 1
+    }
+  },
+  "results": [
+    {
+      "idx": 0,
+      "func": "two_sum",
+      "bug_type": "wrong_data_structure",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 203
+    },
+    {
+      "idx": 1,
+      "func": "is_valid",
+      "bug_type": "wrong_logic",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 298
+    },
+    {
+      "idx": 2,
+      "func": "merge_two_lists",
+      "bug_type": "wrong_condition",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 258
+    },
+    {
+      "idx": 3,
+      "func": "max_subarray",
+      "bug_type": "wrong_initialization",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 209
+    },
+    {
+      "idx": 4,
+      "func": "climb_stairs",
+      "bug_type": "wrong_base_case",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 101
+    },
+    {
+      "idx": 5,
+      "func": "longest_palindrome",
+      "bug_type": "missing_edge_case",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 406
+    },
+    {
+      "idx": 6,
+      "func": "max_area",
+      "bug_type": "wrong_operator",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 341
+    },
+    {
+      "idx": 7,
+      "func": "three_sum",
+      "bug_type": "missing_edge_case",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 728
+    },
+    {
+      "idx": 8,
+      "func": "remove_duplicates",
+      "bug_type": "wrong_initialization",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 225
+    },
+    {
+      "idx": 9,
+      "func": "search_insert",
+      "bug_type": "wrong_condition",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 299
+    },
+    {
+      "idx": 10,
+      "func": "unknown",
+      "bug_type": "version_compat",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 255
+    },
+    {
+      "idx": 11,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 327
+    },
+    {
+      "idx": 12,
+      "func": "foo",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: illegal target for annotation (<input>, line 2)",
+      "steps_count": 1,
+      "code_length": 185
+    },
+    {
+      "idx": 13,
+      "func": "__init__",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 10)",
+      "steps_count": 1,
+      "code_length": 680
+    },
+    {
+      "idx": 14,
+      "func": "__init__",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 8)",
+      "steps_count": 1,
+      "code_length": 984
+    },
+    {
+      "idx": 15,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: invalid syntax (<input>, line 1)",
+      "steps_count": 1,
+      "code_length": 217
+    },
+    {
+      "idx": 16,
+      "func": "unknown",
+      "bug_type": "file_io",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 166
+    },
+    {
+      "idx": 17,
+      "func": "kill_photoshop",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 150
+    },
+    {
+      "idx": 18,
+      "func": "unknown",
+      "bug_type": "index_error",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 435
+    },
+    {
+      "idx": 19,
+      "func": "save_data",
+      "bug_type": "file_io",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 153
+    },
+    {
+      "idx": 20,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 142
+    },
+    {
+      "idx": 21,
+      "func": "make_foo",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 6)",
+      "steps_count": 1,
+      "code_length": 490
+    },
+    {
+      "idx": 22,
+      "func": "scaled_value",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 509
+    },
+    {
+      "idx": 23,
+      "func": "__init__",
+      "bug_type": "exception_handling",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 10)",
+      "steps_count": 1,
+      "code_length": 901
+    },
+    {
+      "idx": 24,
+      "func": "main",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 3)",
+      "steps_count": 1,
+      "code_length": 830
+    },
+    {
+      "idx": 25,
+      "func": "__init__",
+      "bug_type": "initialization",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 155
+    },
+    {
+      "idx": 26,
+      "func": "startElement",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: '(' was never closed (<input>, line 11)",
+      "steps_count": 1,
+      "code_length": 528
+    },
+    {
+      "idx": 27,
+      "func": "get_tree",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 144
+    },
+    {
+      "idx": 28,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 11)",
+      "steps_count": 1,
+      "code_length": 417
+    },
+    {
+      "idx": 29,
+      "func": "main",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: unterminated string literal (detected at line 69) (<input>, line 69)",
+      "steps_count": 1,
+      "code_length": 1465
+    },
+    {
+      "idx": 30,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 725
+    },
+    {
+      "idx": 31,
+      "func": "unknown",
+      "bug_type": "type_error",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 261
+    },
+    {
+      "idx": 32,
+      "func": "unknown",
+      "bug_type": "function_call",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 423
+    },
+    {
+      "idx": 33,
+      "func": "unknown",
+      "bug_type": "exception_handling",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 143
+    },
+    {
+      "idx": 34,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: invalid syntax (<input>, line 4)",
+      "steps_count": 1,
+      "code_length": 295
+    },
+    {
+      "idx": 35,
+      "func": "__init__",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 359
+    },
+    {
+      "idx": 36,
+      "func": "tag_tokenized_comments_corpus",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 270
+    },
+    {
+      "idx": 37,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 451
+    },
+    {
+      "idx": 38,
+      "func": "My_file",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 296
+    },
+    {
+      "idx": 39,
+      "func": "setUp",
+      "bug_type": "file_io",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 655
+    },
+    {
+      "idx": 40,
+      "func": "get_url",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: expected an indented block after 'if' statement on line 6 (<input>, line 6)",
+      "steps_count": 1,
+      "code_length": 196
+    },
+    {
+      "idx": 41,
+      "func": "clean",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 19)",
+      "steps_count": 1,
+      "code_length": 586
+    },
+    {
+      "idx": 42,
+      "func": "unknown",
+      "bug_type": "file_io",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: invalid syntax (<input>, line 2)",
+      "steps_count": 1,
+      "code_length": 214
+    },
+    {
+      "idx": 43,
+      "func": "odeFunc",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 2015
+    },
+    {
+      "idx": 44,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 236
+    },
+    {
+      "idx": 45,
+      "func": "sieve",
+      "bug_type": "other",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 350
+    },
+    {
+      "idx": 46,
+      "func": "doStuff",
+      "bug_type": "condition_issue",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 146
+    },
+    {
+      "idx": 47,
+      "func": "worker",
+      "bug_type": "encoding",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 628
+    },
+    {
+      "idx": 48,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 163
+    },
+    {
+      "idx": 49,
+      "func": "Log_Caculator",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 1218
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+VALID: False
+Patch:
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 225f8919..8ab55852 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -567,7 +567,7 @@ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+     pos = 0
+     if slice_length is None or slice_length <= 0:
+-        slice_length = len(string)
++        slice_length = len(string) if len(string) > 0 else 1
+     while pos < len(string):
+         yield string[pos:pos + slice_length]
+         pos += slice_length

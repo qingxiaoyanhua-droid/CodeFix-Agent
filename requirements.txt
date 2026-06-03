@@ -1,0 +1,34 @@
+# Core dependencies
+numpy>=1.21.0
+requests>=2.28.0
+
+# Code quality
+ruff>=0.1.0
+
+# Optional: LLM inference
+# transformers>=4.30.0
+# accelerate>=0.20.0
+# sentencepiece>=0.1.99
+
+# Optional: Embedding models
+# sentence-transformers>=2.2.0
+
+# Optional: Vector search
+# faiss-cpu>=1.7.4
+# faiss-gpu>=1.7.4  # For GPU support
+
+# Optional: Reranking
+# cross-encoder>=0.6.0
+
+# Optional: Deep learning training
+# torch>=2.0.0
+# peft>=0.4.0
+# bitsandbytes>=0.41.0
+
+# Optional: Tree-sitter for multi-language AST
+# tree-sitter>=0.20.0
+
+# Development
+pytest>=7.0.0
+black>=23.0.0
+isort>=5.12.0

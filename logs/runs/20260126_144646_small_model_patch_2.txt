@@ -1,0 +1,25 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -564,12 +564,12 @@ def iter_slices(string, slice_length):
+    def iter_slices(string, slice_length):
+        """Iterate over slices of a string."""
+-    pos = 7
++    pos = 0
+        if slice_length is None or slice_length <= 0:
+            slice_length = len(string)
+        while pos < len(string):
+            yield string[pos : pos + slice_length]
+            pos += slice_length
+
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index 3c0a0d3e..b5c6a3c1 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -653,12 +653,12 @@ def test_iter_slices(value, length):
+        # Reads all content at once
+        assert len(list(iter_slices(value, length))) == 1
+    else:
+-        assert len(list(iter_slices(value, 1))) == length
++        assert len(list(iter_slices(value, length))) == length

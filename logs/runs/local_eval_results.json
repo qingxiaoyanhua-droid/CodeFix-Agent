@@ -1,0 +1,80 @@
+{
+  "summary": {
+    "total": 5,
+    "passed": 1,
+    "pass_rate": 0.2,
+    "total_time_s": 100.62677001953125
+  },
+  "results": [
+    {
+      "program": "bitcount",
+      "bug_type": "wrong_operator",
+      "agent_success": false,
+      "test_passed": false,
+      "error": "No fixed code produced",
+      "iterations": 3,
+      "llm_calls": 2,
+      "used_reflections": 0,
+      "used_skills": [],
+      "skill_extracted": null,
+      "time_ms": 20911.03196144104,
+      "compute_savings": 0.33333333333333337
+    },
+    {
+      "program": "find_first_in_sorted",
+      "bug_type": "off_by_one",
+      "agent_success": false,
+      "test_passed": false,
+      "error": "No fixed code produced",
+      "iterations": 3,
+      "llm_calls": 2,
+      "used_reflections": 1,
+      "used_skills": [],
+      "skill_extracted": null,
+      "time_ms": 31782.43350982666,
+      "compute_savings": 0.33333333333333337
+    },
+    {
+      "program": "gcd",
+      "bug_type": "wrong_argument_order",
+      "agent_success": true,
+      "test_passed": true,
+      "error": "",
+      "iterations": 1,
+      "llm_calls": 0,
+      "used_reflections": 2,
+      "used_skills": [],
+      "skill_extracted": null,
+      "time_ms": 5289.314746856689,
+      "compute_savings": 1.0
+    },
+    {
+      "program": "sqrt",
+      "bug_type": "wrong_expression",
+      "agent_success": false,
+      "test_passed": false,
+      "error": "No fixed code produced",
+      "iterations": 3,
+      "llm_calls": 2,
+      "used_reflections": 2,
+      "used_skills": [],
+      "skill_extracted": null,
+      "time_ms": 20211.695671081543,
+      "compute_savings": 0.33333333333333337
+    },
+    {
+      "program": "quicksort",
+      "bug_type": "off_by_one",
+      "agent_success": false,
+      "test_passed": false,
+      "error": "No fixed code produced",
+      "iterations": 3,
+      "llm_calls": 2,
+      "used_reflections": 2,
+      "used_skills": [],
+      "skill_extracted": null,
+      "time_ms": 22432.294130325317,
+      "compute_savings": 0.33333333333333337
+    }
+  ]
+}

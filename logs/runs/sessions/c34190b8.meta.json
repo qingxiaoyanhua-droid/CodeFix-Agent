@@ -1,0 +1,10 @@
+{
+  "session_id": "c34190b8",
+  "created_at": "2026-05-16T16:44:29.764853",
+  "updated_at": "2026-05-16T16:44:30.364914",
+  "metadata": {
+    "bug_description": "The add function should return a + b, not a - b",
+    "bug_hash": "f173f5e8",
+    "max_iterations": 1
+  }
+}

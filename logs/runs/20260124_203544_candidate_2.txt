@@ -1,0 +1,60 @@
+```diff
+diff --git a/src/requests/models.py b/src/requests/models.py
+index 1c9d6b8..a9e8f3d 100644
+--- a/src/requests/models.py
++++ b/src/requests/models.py
+@@ -32,6 +32,34 @@ from urllib3.util import parse_url
+ from ._internal_utils import to_native_string, unicode_is_ascii
+ from .auth import HTTPBasicAuth
+ from .compat import (
++    # This needs to be imported here to avoid circular imports
++    # when requests.utils is imported before requests.models
++    def iter_slices(string, slice_length):
++        """Iterate over slices of a string."""
++        pos = 0
++        if slice_length is None or slice_length <= 0:
++            yield string
++            return
++        while pos < len(string):
++            yield string[pos : pos + slice_length]
++            pos += slice_length
++
++
++def _iter_slices_bytes(bytes_content, slice_length):
++    """Iterate over slices of bytes."""
++    pos = 0
++    if slice_length is None or slice_length <= 0:
++        yield bytes_content
++        return
++    while pos < len(bytes_content):
++        yield bytes_content[pos : pos + slice_length]
++        pos += slice_length
++
++
++def _iter_slices_text(text_content, slice_length):
++    """Iterate over slices of text."""
++    pos = 0
++    if slice_length is None or slice_length <= 0:
++        yield text_content
++        return
+     Callable,
+     JSONDecodeError,
+     Mapping,
+@@ -44,7 +72,6 @@ from .compat import json as complexjson
+ from .compat import urlencode, urlsplit, urlunparse
+ from .cookies import _copy_cookie_jar, cookiejar_from_dict, get_cookie_header
+ from .exceptions import (
+-    ChunkedEncodingError,
+     ConnectionError,
+     ContentDecodingError,
+     HTTPError,
+@@ -54,6 +81,7 @@ from .exceptions import JSONDecodeError as RequestsJSONDecodeError
+ from .exceptions import MissingSchema
+ from .exceptions import SSLError as RequestsSSLError
+ from .exceptions import StreamConsumedError
++from .exceptions import ChunkedEncodingError
+ from .hooks import default_hooks
+ from .status_codes import codes
+ from .structures import CaseInsensitiveDict
+
+```

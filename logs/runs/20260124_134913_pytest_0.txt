@@ -1,0 +1,187 @@
+........................................................................ [ 11%]
+........................................................................ [ 23%]
+......sattempting to ignore so the rest of the tests can run
+................................................................. [ 35%]
+...............................................x........................ [ 47%]
+........................................................................ [ 58%]
+............................s......s.................................... [ 70%]
+........................................................................ [ 82%]
+...................................FFFFF................................ [ 94%]
+..................sssssssssss.....s                                      [100%]
+=================================== FAILURES ===================================
+____________________________ test_iter_slices[T-1] _____________________________
+
+value = 'T', length = 1
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+            assert len(list(iter_slices(value, length))) == 1
+        else:
+>           assert len(list(iter_slices(value, 1))) == length
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x10ef782e0>)
+E            +      where <generator object iter_slices at 0x10ef782e0> = iter_slices('T', 1)
+
+tests/test_utils.py:661: AssertionError
+___________________________ test_iter_slices[Test-4] ___________________________
+
+value = 'Test', length = 4
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+            assert len(list(iter_slices(value, length))) == 1
+        else:
+>           assert len(list(iter_slices(value, 1))) == length
+E           AssertionError: assert 0 == 4
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x10ed05ee0>)
+E            +      where <generator object iter_slices at 0x10ed05ee0> = iter_slices('Test', 1)
+
+tests/test_utils.py:661: AssertionError
+___________________________ test_iter_slices[Cont-0] ___________________________
+
+value = 'Cont', length = 0
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+>           assert len(list(iter_slices(value, length))) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x10ed049e0>)
+E            +      where <generator object iter_slices at 0x10ed049e0> = iter_slices('Cont', 0)
+
+tests/test_utils.py:659: AssertionError
+__________________________ test_iter_slices[Other--5] __________________________
+
+value = 'Other', length = -5
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+>           assert len(list(iter_slices(value, length))) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x10ecc6340>)
+E            +      where <generator object iter_slices at 0x10ecc6340> = iter_slices('Other', -5)
+
+tests/test_utils.py:659: AssertionError
+________________________ test_iter_slices[Content-None] ________________________
+
+value = 'Content', length = None
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+>           assert len(list(iter_slices(value, length))) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x10ed04580>)
+E            +      where <generator object iter_slices at 0x10ed04580> = iter_slices('Content', None)
+
+tests/test_utils.py:659: AssertionError
+=============================== warnings summary ===============================
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+  /Users/setupmac/repobugfix-agent/requests/src/requests/auth.py:36: DeprecationWarning: Non-string usernames will no longer be supported in Requests 3.0.0. Please convert the object you've passed in (42) to a string or bytes object in the near future to avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+  /Users/setupmac/repobugfix-agent/requests/src/requests/auth.py:46: DeprecationWarning: Non-string passwords will no longer be supported in Requests 3.0.0. Please convert the object you've passed in (<class 'int'>) to a string or bytes object in the near future to avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+  /Users/setupmac/repobugfix-agent/requests/src/requests/auth.py:36: DeprecationWarning: Non-string usernames will no longer be supported in Requests 3.0.0. Please convert the object you've passed in (None) to a string or bytes object in the near future to avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+  /Users/setupmac/repobugfix-agent/requests/src/requests/auth.py:46: DeprecationWarning: Non-string passwords will no longer be supported in Requests 3.0.0. Please convert the object you've passed in (<class 'NoneType'>) to a string or bytes object in the near future to avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tls_settings_verify_True
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tls_settings_verify_bundle_expired_cert
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tls_settings_verify_bundle_unexpired_cert
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_mtls_settings
+  /Users/setupmac/repobugfix-agent/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'localhost'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+    warnings.warn(
+
+tests/test_utils.py::TestContentEncodingDetection::test_none
+tests/test_utils.py::TestContentEncodingDetection::test_pragmas[<meta charset="UTF-8">]
+tests/test_utils.py::TestContentEncodingDetection::test_pragmas[<meta http-equiv="Content-type" content="text/html;charset=UTF-8">]
+tests/test_utils.py::TestContentEncodingDetection::test_pragmas[<meta http-equiv="Content-type" content="text/html;charset=UTF-8" />]
+tests/test_utils.py::TestContentEncodingDetection::test_pragmas[<?xml version="1.0" encoding="UTF-8"?>]
+tests/test_utils.py::TestContentEncodingDetection::test_precedence
+  /Users/setupmac/repobugfix-agent/requests/src/requests/utils.py:484: DeprecationWarning: In requests 3.0, get_encodings_from_content will be removed. For more information, please see the discussion on issue #2266. (This warning should only appear once.)
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+5 failed, 590 passed, 15 skipped, 1 xfailed, 18 warnings in 73.48s (0:01:13)
+
+

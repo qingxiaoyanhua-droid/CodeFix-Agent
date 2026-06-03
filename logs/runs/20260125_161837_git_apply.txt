@@ -1,0 +1,5 @@
+ok=False
+
+error: patch failed: src/requests/utils.py:1
+error: src/requests/utils.py: patch does not apply
+

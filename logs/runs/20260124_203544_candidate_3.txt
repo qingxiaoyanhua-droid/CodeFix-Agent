@@ -1,0 +1,14 @@
+```diff
+diff --git a/src/requests/models.py b/src/requests/models.py
+index 1c9d6b8..a9e8f3d 100644
+--- a/src/requests/models.py
++++ b/src/requests/models.py
+@@ -30,6 +30,7 @@ from urllib3.util import parse_url
+ from ._internal_utils import to_native_string, unicode_is_ascii
+ from .auth import HTTPBasicAuth
+ from .compat import (
++    int,
+     Callable,
+     JSONDecodeError,
+     Mapping,
+```

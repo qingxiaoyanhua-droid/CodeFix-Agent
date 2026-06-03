@@ -1,0 +1,20 @@
+[project]
+name = "codefix-agent"
+version = "0.1.0"
+description = "Three-layer memory code fix agent with CoT + ReAct"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,11 @@
+
+
+ImportError while loading conftest '/Users/setupmac/repobugfix-agent/requests/tests/conftest.py'.
+tests/conftest.py:12: in <module>
+    from requests.compat import urljoin
+src/requests/__init__.py:151: in <module>
+    from . import packages, utils
+E     File "/Users/setupmac/repobugfix-agent/requests/src/requests/utils.py", line 576
+E       """Iterate over slices of a string."""
+E       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   IndentationError: expected an indented block after 'while' statement on line 575

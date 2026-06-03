@@ -1,0 +1,58 @@
+You are a senior Python maintainer.
+Repo: requests
+
+Goal: produce a patch to fix the failing tests.
+Rules:
+- Output MUST be a complete unified diff (git apply format).
+- Include sufficient context lines around the change (typically 3+ lines before and after).
+- Do NOT include explanations.
+- Do NOT change tests.
+- Keep patch minimal but complete.
+- The diff must be syntactically correct and complete.
+
+EXAMPLE of CORRECT diff format:
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -569,9 +569,9 @@ def iter_slices(string, slice_length):
+    """Iterate over slices of a string."""
+-    pos = 7  # This is the buggy line that should be changed
++    pos = 0  # This is the fix
+    if slice_length is None or slice_length <= 0:
+        slice_length = len(string)
+    while pos < len(string):
+        yield string[pos : pos + slice_length]
+        pos += slice_length
+
+Failing test nodeid:
+tests/test_utils.py::test_iter_slices[T-1]
+
+Short reason:
+AssertionError: assert 0 ...
+
+Failure snippet:
+
+
+Current git diff (shows changes from original to buggy code):
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -570,7 +570,7 @@ def stream_decode_response_unicode(iterator, r):
+ 
+ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+-    pos = 0
++    pos = 7
+     if slice_length is None or slice_length <= 0:
+         slice_length = len(string)
+     while pos < len(string):
+
+
+Relevant source context:
+>>    1 | nodeid=tests/test_utils.py::test_iter_slices[T-1]
+      2 | reason=AssertionError: assert 0 ...
+
+Analyze the current buggy code and generate a patch that fixes the bug.
+Now output ONLY the complete unified diff patch that fixes the issue:

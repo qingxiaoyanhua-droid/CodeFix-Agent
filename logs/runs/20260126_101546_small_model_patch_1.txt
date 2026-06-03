@@ -1,0 +1,23 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -565,12 +565,12 @@ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+-    pos = 0
++    pos = 7
+     if slice_length is None or slice_length <= 0:
+         slice_length = len(string)
+     while pos < len(string):
+         yield string[pos : pos + slice_length]
+         pos += slice_length
+ 
+ def stream_decode_response_unicode(iterator, r):
+     """Decode response using the encoding from the headers."""
+@@ -578,12 +578,12 @@ def stream_decode_response_unicode(iterator, r):
+     """Decode response using the encoding from the headers."""
+     if not r.encoding:
+         return iterator
+-    for line in iterator:
++    for line in iterator:
+         yield line.decode(r.encoding, 'replace')

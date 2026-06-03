@@ -1,0 +1,160 @@
+keyword=1
+
+src/requests/adapters.py:10:import socket  # noqa: F401
+src/requests/adapters.py:71:DEFAULT_POOLSIZE = 10
+src/requests/adapters.py:100:            pool_kwargs["key_file"] = client_cert[1]
+src/requests/adapters.py:322:                conn.key_file = cert[1]
+src/requests/adapters.py:489:                "https://github.com/psf/requests/pull/6710 for more details."
+src/requests/adapters.py:663:                # TODO: Remove this in 3.0.0: see #2811
+src/requests/adapters.py:674:                # This branch is for urllib3 v1.22 and later.
+src/requests/adapters.py:687:                # This branch is for urllib3 versions earlier than v1.22
+src/requests/help.py:38:    currently running. For example, on CPython 3.10.3 it will return
+src/requests/help.py:39:    {'name': 'CPython', 'version': '3.10.3'}.
+src/requests/structures.py:52:        return self._store[key.lower()][1]
+src/requests/structures.py:65:        return ((lowerkey, keyval[1]) for (lowerkey, keyval) in self._store.items())
+src/requests/utils.py:28:from ._internal_utils import (  # noqa: F401
+src/requests/utils.py:41:    is_urllib3_1,
+src/requests/utils.py:140:    if not is_urllib3_1 and isinstance(o, str):
+src/requests/utils.py:142:        # of latin-1 (iso-8859-1) like http.client.
+src/requests/utils.py:238:                login_i = 0 if _netrc[0] else 1
+src/requests/utils.py:254:    if name and isinstance(name, basestring) and name[0] != "<" and name[-1] != ">":
+src/requests/utils.py:287:    extracted_path = os.path.join(tmp, member.split("/")[-1])
+src/requests/utils.py:390:        if item[:1] == item[-1:] == '"':
+src/requests/utils.py:391:            item = unquote_header_value(item[1:-1])
+src/requests/utils.py:424:        name, value = item.split("=", 1)
+src/requests/utils.py:425:        if value[:1] == value[-1:] == '"':
+src/requests/utils.py:426:            value = unquote_header_value(value[1:-1])
+src/requests/utils.py:440:    if value and value[0] == value[-1] == '"':
+src/requests/utils.py:445:        value = value[1:-1]
+src/requests/utils.py:513:    content_type, params = tokens[0].strip(), tokens[1:]
+src/requests/utils.py:522:            if index_of_equals != -1:
+src/requests/utils.py:524:                value = param[index_of_equals + 1 :].strip(items_to_strip)
+src/requests/utils.py:547:        return "ISO-8859-1"
+src/requests/utils.py:588:    1. charset from content-type
+src/requests/utils.py:622:    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" + "0123456789-._~"
+src/requests/utils.py:633:    for i in range(1, len(parts)):
+src/requests/utils.py:637:                c = chr(int(h, 16))
+src/requests/utils.py:675:    Example: returns True if ip = 192.168.1.1 and net = 192.168.1.0/24
+src/requests/utils.py:676:             returns False if ip = 192.168.1.1 and net = 192.168.100.0/24
+src/requests/utils.py:694:    bits = 0xFFFFFFFF ^ (1 << 32 - mask) - 1
+src/requests/utils.py:715:    if string_network.count("/") == 1:
+src/requests/utils.py:717:            mask = int(string_network.split("/")[1])
+src/requests/utils.py:721:        if mask < 1 or mask > 32:
+src/requests/utils.py:922:            url, params = val.split(";", 1)
+src/requests/utils.py:959:    if sample[:2] in (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE):
+src/requests/utils.py:960:        return "utf-16"  # BOM included
+src/requests/utils.py:965:        if sample[::2] == _null2:  # 1st and 3rd are null
+src/requests/utils.py:966:            return "utf-16-be"
+src/requests/utils.py:967:        if sample[1::2] == _null2:  # 2nd and 4th are null
+src/requests/utils.py:968:            return "utf-16-le"
+src/requests/utils.py:969:        # Did not detect 2 valid UTF-16 ascii-range characters
+src/requests/utils.py:973:        if sample[1:] == _null3:
+src/requests/utils.py:1032:    _validate_header_part(header, value, 1)
+src/requests/utils.py:1066:    netloc = netloc.rsplit("@", 1)[-1]
+src/requests/api.py:7::copyright: (c) 2012 by Kenneth Reitz.
+AUTHORS.rst:102:- Josh Imhoff <joshimhoff13@gmail.com>
+AUTHORS.rst:172:- Hussain Tamboli <hussaintamboli18@gmail.com> (`@hussaintamboli <https://github.com/hussaintamboli>`_)
+AUTHORS.rst:175:- Moinuddin Quadri <moin18@gmail.com> (`@moin18 <https://github.com/moin18>`_)
+AUTHORS.rst:192:- Alessio Izzo (`@aless10 <https://github.com/aless10>`_)
+src/requests/compat.py:20:    is_urllib3_1 = int(urllib3_version.split(".")[0]) == 1
+src/requests/compat.py:23:    is_urllib3_1 = True
+tox.ini:2:envlist = py{39,310,311,312,313,314}-{default, use_chardet_on_py3}
+src/requests/__version__.py:14:__cake__ = "\u2728 \U0001f370 \u2728"
+requirements-dev.txt:4:pytest-httpbin==2.1.0
+requirements-dev.txt:5:httpbin~=0.10.0
+src/requests/sessions.py:33:from .models import (  # noqa: F401
+src/requests/sessions.py:41:from .utils import (  # noqa: F401
+src/requests/sessions.py:118:            # in latin1, but empirical evidence suggests that latin1 is very
+src/requests/sessions.py:120:            # It is more likely to get UTF8 header rather than latin1.
+src/requests/sessions.py:122:            # To solve this, we re-encode the location in latin1.
+src/requests/sessions.py:123:            location = location.encode("latin1")
+src/requests/sessions.py:183:            resp.history = hist[1:]
+src/requests/sessions.py:198:            # Handle redirection without scheme (see: RFC 1808 Section 4)
+src/requests/sessions.py:203:            # Normalize url case and attach previous fragment if needed (RFC 7231 7.1.2)
+src/requests/sessions.py:211:            # Facilitate relative 'location' headers, as allowed by RFC 7231.
+src/requests/sessions.py:223:            # https://github.com/psf/requests/issues/1084
+src/requests/sessions.py:339:        # https://tools.ietf.org/html/rfc7231#section-6.4.4
+src/requests/sessions.py:348:        # Second, if a POST is responded to with a 301, turn it into a GET.
+src/requests/sessions.py:349:        # This bizarre behaviour is explained in Issue 1704.
+src/requests/sessions.py:401:        #: (e.g. {'http': 'foo.bar:3128', 'http://host.name': 'foo.bar:4012'}) to
+src/requests/sessions.py:823:    .. deprecated:: 1.0.0
+src/requests/sessions.py:825:        This method has been deprecated since version 1.0.0 and is only kept for
+src/requests/status_codes.py:12:    418
+src/requests/status_codes.py:25:    100: ("continue",),
+src/requests/status_codes.py:26:    101: ("switching_protocols",),
+src/requests/status_codes.py:27:    102: ("processing", "early-hints"),
+src/requests/status_codes.py:28:    103: ("checkpoint",),
+src/requests/status_codes.py:29:    122: ("uri_too_long", "request_uri_too_long"),
+src/requests/status_codes.py:31:    201: ("created",),
+src/requests/status_codes.py:42:    301: ("moved_permanently", "moved", "\\o-"),
+src/requests/status_codes.py:56:    401: ("unauthorized",),
+src/requests/status_codes.py:65:    410: ("gone",),
+src/requests/status_codes.py:66:    411: ("length_required",),
+src/requests/status_codes.py:67:    412: ("precondition_failed", "precondition"),
+src/requests/status_codes.py:68:    413: ("request_entity_too_large", "content_too_large"),
+src/requests/status_codes.py:69:    414: ("request_uri_too_large", "uri_too_long"),
+src/requests/status_codes.py:70:    415: ("unsupported_media_type", "unsupported_media", "media_type"),
+src/requests/status_codes.py:71:    416: (
+src/requests/status_codes.py:76:    417: ("expectation_failed",),
+src/requests/status_codes.py:77:    418: ("im_a_teapot", "teapot", "i_am_a_teapot"),
+src/requests/status_codes.py:78:    421: ("misdirected_request",),
+src/requests/status_codes.py:86:    431: ("header_fields_too_large", "fields_too_large"),
+src/requests/status_codes.py:90:    451: ("unavailable_for_legal_reasons", "legal_reasons"),
+src/requests/status_codes.py:94:    501: ("not_implemented",),
+src/requests/status_codes.py:102:    510: ("not_extended",),
+src/requests/status_codes.py:103:    511: ("network_authentication_required", "network_auth", "network_authentication"),
+setup.py:27:    sys.exit(1)
+setup.py:31:if sys.argv[-1] == "publish":
+setup.py:39:    "urllib3>=1.21.1,<3",
+setup.py:40:    "certifi>=2017.4.17",
+setup.py:43:    "pytest-httpbin==2.1.0",
+setup.py:47:    "PySocks>=1.5.6, !=1.5.7",
+setup.py:86:        "Programming Language :: Python :: 3.10",
+setup.py:87:        "Programming Language :: Python :: 3.11",
+setup.py:88:        "Programming Language :: Python :: 3.12",
+setup.py:89:        "Programming Language :: Python :: 3.13",
+setup.py:90:        "Programming Language :: Python :: 3.14",
+setup.py:100:        "socks": ["PySocks>=1.5.6, !=1.5.7"],
+src/requests/auth.py:57:        username = username.encode("latin1")
+src/requests/auth.py:60:        password = password.encode("latin1")
+src/requests/auth.py:124:            self._thread_local.num_401_calls = None
+src/requests/auth.py:156:                return hashlib.sha1(x).hexdigest()
+src/requests/auth.py:167:        elif _algorithm == "SHA-512":
+src/requests/auth.py:169:            def sha512_utf8(x):
+src/requests/auth.py:172:                return hashlib.sha512(x).hexdigest()
+src/requests/auth.py:174:            hash_utf8 = sha512_utf8
+src/requests/auth.py:176:        KD = lambda s, d: hash_utf8(f"{s}:{d}")  # noqa:E731
+src/requests/auth.py:184:        #: path is request-uri defined in RFC 2616 which should not be empty
+src/requests/auth.py:189:        A1 = f"{self.username}:{realm}:{self.password}"
+src/requests/auth.py:192:        HA1 = hash_utf8(A1)
+src/requests/auth.py:196:            self._thread_local.nonce_count += 1
+src/requests/auth.py:198:            self._thread_local.nonce_count = 1
+src/requests/auth.py:205:        cnonce = hashlib.sha1(s).hexdigest()[:16]
+src/requests/auth.py:207:            HA1 = hash_utf8(f"{HA1}:{nonce}:{cnonce}")
+src/requests/auth.py:210:            respdig = KD(HA1, f"{nonce}:{HA2}")
+src/requests/auth.py:213:            respdig = KD(HA1, noncebit)
+src/requests/auth.py:237:        """Reset num_401_calls counter on redirects."""
+src/requests/auth.py:239:            self._thread_local.num_401_calls = 1
+src/requests/auth.py:241:    def handle_401(self, r, **kwargs):
+src/requests/auth.py:251:            self._thread_local.num_401_calls = 1
+src/requests/auth.py:260:        if "digest" in s_auth.lower() and self._thread_local.num_401_calls < 2:
+src/requests/auth.py:261:            self._thread_local.num_401_calls += 1
+src/requests/auth.py:263:            self._thread_local.chal = parse_dict_header(pat.sub("", s_auth, count=1))
+src/requests/auth.py:282:        self._thread_local.num_401_calls = 1
+src/requests/auth.py:288:        # If we have a saved nonce, skip the 401
+src/requests/auth.py:299:        r.register_hook("response", self.handle_401)
+src/requests/auth.py:301:        self._thread_local.num_401_calls = 1
+src/requests/__init__.py:22:   >>> payload = dict(key1='value1', key2='value2')
+src/requests/__init__.py:28:       "key1": "value1",
+src/requests/__init__.py:37::copyright: (c) 2017 by Kenneth Reitz.
+src/requests/__init__.py:62:    # Sometimes, urllib3 only reports its version as 16.1.
+src/requests/__init__.py:67:    major, minor, patch = urllib3_version  # noqa: F811
+src/requests/__init__.py:69:    # urllib3 >= 1.21.1
+src/requests/__init__.py:70:    assert major >= 1
+src/requests/__init__.py:71:    if major == 1:
+src/requests/__init__.py:72:        assert minor >= 21
+src/requests/__init__.py:94:    # cryptography < 1.3.4
+src/requests/__init__.py:100:    if cryptography_version < [1, 3, 4]:
+README.md:20:Requests allows you to send HTTP/1.1 requests extremely easily. There’s no need to manually add query strings to your URLs, or to form-encode your `PUT` & `POST` data — but nowadays, just use the `json` method!
+README.md:22:Requests is one of the most downloaded Python packages today, pulling in around `30M downloads / week`— according to GitHub, Requests is currently [depended upon](https://github.com/psf/requests/network/dependents?package_id=UGFja2FnZS01NzA4OTExNg%3D%3D) by `1,000,000+` repositories. You may certainly put your trust in this code.
+src/requests/model

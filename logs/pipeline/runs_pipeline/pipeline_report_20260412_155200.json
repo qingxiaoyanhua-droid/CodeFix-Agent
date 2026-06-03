@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-04-12T15:53:03.331646",
+  "project_root": "D:\\VsCodeProject\\repobugfix_complete_project",
+  "steps": [
+    {
+      "name": "env_check",
+      "description": "检查运行环境",
+      "status": "failed",
+      "duration_ms": 7191.6,
+      "error": "缺少依赖: FAISS",
+      "output": "Python: 3.10.16\n  ✓ PyTorch (torch)\n  ✓ Transformers (transformers)\n  ✓ PEFT (peft)\n  ✓ TRL (trl)\n  ✗ FAISS (faiss) - 未安装\n  ✓ NumPy (numpy)\n  ✓ Datasets (datasets)\n  ⚠ DASHSCOPE_API_KEY: 未设置（部分功能不可用）"
+    },
+    {
+      "name": "data_check",
+      "description": "检查数据集完整性",
+      "status": "success",
+      "duration_ms": 1.0,
+      "error": "",
+      "output": "主数据集: dpo_dataset_merged.json\n  数量: 187 条\n  Bug类型分布: 22 种\n    - unknown: 106\n    - type_conversion: 43\n    - initialization: 5\n    - file_io: 4\n    - exception_handling: 4\n\nRAG知识库: bug_fixes.json\n  数量: 187 条"
+    },
+    {
+      "name": "eval_local",
+      "description": "本地代码级评测",
+      "status": "success",
+      "duration_ms": 4.0,
+      "error": "",
+      "output": "本地语法检查（前50条）:\n  通过语法: 36/50 (72.0%)\n  语法错误: 14\n  无代码段: 0"
+    },
+    {
+      "name": "rag_check",
+      "description": "RAG检索功能验证",
+      "status": "success",
+      "duration_ms": 55369.6,
+      "error": "",
+      "output": "RAG系统加载成功\n  知识库条目: 187\n\n检索测试:\n  查询: Fix off-by-one error in loop boundary...\n    → 返回 2 条, top-1: value_error\n  查询: Fix wrong operator in arithmetic functio...\n    → 返回 2 条, top-1: wrong_condition\n  查询: Fix missing return value in base case...\n    → 返回 2 条, top-1: missing_edge_case"
+    },
+    {
+      "name": "cot_agent_test",
+      "description": "CoT Agent快速功能测试",
+      "status": "success",
+      "duration_ms": 25.2,
+      "error": "",
+      "output": "CoT Parser测试:\n  解析步骤数: 4\n  提取代码长度: 31 chars\n\nExecutor测试:\n  执行结果: PASS\n  错误类型: N/A"
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "success": 4,
+    "failed": 1,
+    "skipped": 0,
+    "total_duration_ms": 62591.29571914673
+  }
+}

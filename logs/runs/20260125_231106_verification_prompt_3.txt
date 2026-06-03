@@ -1,0 +1,241 @@
+You are a senior Python maintainer and code reviewer.
+Repo: requests
+
+Goal: Verify if the proposed patch is correct and will fix the failing tests.
+
+Rules for a valid patch:
+1. Must be in unified diff format (starts with "diff --git")
+2. Must be syntactically correct Python code
+3. Must logically fix the reported issue
+4. Must not break existing functionality
+5. Must not modify test files
+6. Must be minimal and focused on the issue
+
+Proposed patch:
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -569,9 +569,9 @@ def iter_slices(string, slice_length):
+    """Iterate over slices of a string."""
+-    pos = 7  # This is the buggy line that should be changed
++    pos = 0  # This is the fix
+    if slice_length is None or slice_length <= 0:
+        slice_length = len(string)
+    while pos < len(string):
+        yield string[pos : pos + slice_length]
+        pos += slice_length
+
+Failing test nodeid:
+tests/test_requests.py::TestTimeout::test_connect_timeout[timeout0]
+
+Short reason:
+...
+
+Failure snippet:
+
+
+Current git diff (before patch):
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -570,7 +570,7 @@ def stream_decode_response_unicode(iterator, r):
+ 
+ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+-    pos = 0
++    pos = 7
+     if slice_length is None or slice_length <= 0:
+         slice_length = len(string)
+     while pos < len(string):
+
+
+Ripgrep hits for "test_connect_timeout":
+tests/test_requests.py:2528:    def test_connect_timeout(self, timeout):
+
+
+Relevant source context:
+   2438 | 
+   2439 |     @pytest.mark.parametrize(
+   2440 |         "value, exception",
+   2441 |         (
+   2442 |             (100, TypeError),
+   2443 |             ("woops", ValueError),
+   2444 |         ),
+   2445 |     )
+   2446 |     def test_expires_invalid_int(self, value, exception):
+   2447 |         """Test case where an invalid type is passed for expires."""
+   2448 |         morsel = Morsel()
+   2449 |         morsel["expires"] = value
+   2450 |         with pytest.raises(exception):
+   2451 |             morsel_to_cookie(morsel)
+   2452 | 
+   2453 |     def test_expires_none(self):
+   2454 |         """Test case where expires is None."""
+   2455 | 
+   2456 |         morsel = Morsel()
+   2457 |         morsel["expires"] = None
+   2458 |         cookie = morsel_to_cookie(morsel)
+   2459 |         assert cookie.expires is None
+   2460 | 
+   2461 | 
+   2462 | class TestMorselToCookieMaxAge:
+   2463 | 
+   2464 |     """Tests for morsel_to_cookie when morsel contains max-age."""
+   2465 | 
+   2466 |     def test_max_age_valid_int(self):
+   2467 |         """Test case where a valid max age in seconds is passed."""
+   2468 | 
+   2469 |         morsel = Morsel()
+   2470 |         morsel["max-age"] = 60
+   2471 |         cookie = morsel_to_cookie(morsel)
+   2472 |         assert isinstance(cookie.expires, int)
+   2473 | 
+   2474 |     def test_max_age_invalid_str(self):
+   2475 |         """Test case where a invalid max age is passed."""
+   2476 | 
+   2477 |         morsel = Morsel()
+   2478 |         morsel["max-age"] = "woops"
+   2479 |         with pytest.raises(TypeError):
+   2480 |             morsel_to_cookie(morsel)
+   2481 | 
+   2482 | 
+   2483 | class TestTimeout:
+   2484 |     def test_stream_timeout(self, httpbin):
+   2485 |         try:
+   2486 |             requests.get(httpbin("delay/10"), timeout=2.0)
+   2487 |         except requests.exceptions.Timeout as e:
+   2488 |             assert "Read timed out" in e.args[0].args[0]
+   2489 | 
+   2490 |     @pytest.mark.parametrize(
+   2491 |         "timeout, error_text",
+   2492 |         (
+   2493 |             ((3, 4, 5), "(connect, read)"),
+   2494 |             ("foo", "must be an int, float or None"),
+   2495 |         ),
+   2496 |     )
+   2497 |     def test_invalid_timeout(self, httpbin, timeout, error_text):
+   2498 |         with pytest.raises(ValueError) as e:
+   2499 |             requests.get(httpbin("get"), timeout=timeout)
+   2500 |         assert error_text in str(e)
+   2501 | 
+   2502 |     @pytest.mark.parametrize("timeout", (None, Urllib3Timeout(connect=None, read=None)))
+   2503 |     def test_none_timeout(self, httpbin, timeout):
+   2504 |         """Check that you can set None as a valid timeout value.
+   2505 | 
+   2506 |         To actually test this behavior, we'd want to check that setting the
+   2507 |         timeout to None actually lets the request block past the system default
+   2508 |         timeout. However, this would make the test suite unbearably slow.
+   2509 |         Instead we verify that setting the timeout to None does not prevent the
+   2510 |         request from succeeding.
+   2511 |         """
+   2512 |         r = requests.get(httpbin("get"), timeout=timeout)
+   2513 |         assert r.status_code == 200
+   2514 | 
+   2515 |     @pytest.mark.parametrize(
+   2516 |         "timeout", ((None, 0.1), Urllib3Timeout(connect=None, read=0.1))
+   2517 |     )
+   2518 |     def test_read_timeout(self, httpbin, timeout):
+   2519 |         try:
+   2520 |             requests.get(httpbin("delay/10"), timeout=timeout)
+   2521 |             pytest.fail("The recv() request should time out.")
+   2522 |         except ReadTimeout:
+   2523 |             pass
+   2524 | 
+   2525 |     @pytest.mark.parametrize(
+   2526 |         "timeout", ((0.1, None), Urllib3Timeout(connect=0.1, read=None))
+   2527 |     )
+>> 2528 |     def test_connect_timeout(self, timeout):
+   2529 |         try:
+   2530 |             requests.get(TARPIT, timeout=timeout)
+   2531 |             pytest.fail("The connect() request should time out.")
+   2532 |         except ConnectTimeout as e:
+   2533 |             assert isinstance(e, ConnectionError)
+   2534 |             assert isinstance(e, Timeout)
+   2535 | 
+   2536 |     @pytest.mark.parametrize(
+   2537 |         "timeout", ((0.1, 0.1), Urllib3Timeout(connect=0.1, read=0.1))
+   2538 |     )
+   2539 |     def test_total_timeout_connect(self, timeout):
+   2540 |         try:
+   2541 |             requests.get(TARPIT, timeout=timeout)
+   2542 |             pytest.fail("The connect() request should time out.")
+   2543 |         except ConnectTimeout:
+   2544 |             pass
+   2545 | 
+   2546 |     def test_encoded_methods(self, httpbin):
+   2547 |         """See: https://github.com/psf/requests/issues/2316"""
+   2548 |         r = requests.request(b"GET", httpbin("get"))
+   2549 |         assert r.ok
+   2550 | 
+   2551 | 
+   2552 | SendCall = collections.namedtuple("SendCall", ("args", "kwargs"))
+   2553 | 
+   2554 | 
+   2555 | class RedirectSession(SessionRedirectMixin):
+   2556 |     def __init__(self, order_of_redirects):
+   2557 |         self.redirects = order_of_redirects
+   2558 |         self.calls = []
+   2559 |         self.max_redirects = 30
+   2560 |         self.cookies = {}
+   2561 |         self.trust_env = False
+   2562 | 
+   2563 |     def send(self, *args, **kwargs):
+   2564 |         self.calls.append(SendCall(args, kwargs))
+   2565 |         return self.build_response()
+   2566 | 
+   2567 |     def build_response(self):
+   2568 |         request = self.calls[-1].args[0]
+   2569 |         r = requests.Response()
+   2570 | 
+   2571 |         try:
+   2572 |             r.status_code = int(self.redirects.pop(0))
+   2573 |         except IndexError:
+   2574 |             r.status_code = 200
+   2575 | 
+   2576 |         r.headers = CaseInsensitiveDict({"Location": "/"})
+   2577 |         r.raw = self._build_raw()
+   2578 |         r.request = request
+   2579 |         return r
+   2580 | 
+   2581 |     def _build_raw(self):
+   2582 |         string = StringIO.StringIO("")
+   2583 |         setattr(string, "release_conn", lambda *args: args)
+   2584 |         return string
+   2585 | 
+   2586 | 
+   2587 | def test_json_encodes_as_bytes():
+   2588 |     # urllib3 expects bodies as bytes-like objects
+   2589 |     body = {"key": "value"}
+   2590 |     p = PreparedRequest()
+   2591 |     p.prepare(method="GET", url="https://www.example.com/", json=body)
+   2592 |     assert isinstance(p.body, bytes)
+   2593 | 
+   2594 | 
+   2595 | def test_requests_are_updated_each_time(httpbin):
+   2596 |     session = RedirectSession([303, 307])
+   2597 |     prep = requests.Request("POST", httpbin("post")).prepare()
+   2598 |     r0 = session.send(prep)
+   2599 |     assert r0.request.method == "POST"
+   2600 |     assert session.calls[-1] == SendCall((r0.request,), {})
+   2601 |     redirect_generator = session.resolve_redirects(r0, prep)
+   2602 |     default_keyword_args = {
+   2603 |         "stream": False,
+   2604 |         "verify": True,
+   2605 |         "cert": None,
+   2606 |         "timeout": None,
+   2607 |         "allow_redirects": False,
+   2608 |         "proxies": {},
+   2609 |     }
+   2610 |     for response in redirect_generator:
+   2611 |         assert response.request.method == "GET"
+   2612 |         send_call = SendCall((response.request,), default_keyword_args)
+   2613 |         assert session.calls[-1] == send_call
+   2614 | 
+   2615 | 
+   2616 | @pytest.mark.parametrize(
+   2617 |     "var,url,proxy",
+   2618 |     [
+
+Please respond with ONLY "VALID" if the patch is correct and follows all rules, or "INVALID" if it does not meet the criteria. Do not provide any other text or explanation.

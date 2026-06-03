@@ -1,0 +1,260 @@
+{
+  "timestamp": "2026-04-13T22:49:06.695587",
+  "total": 20,
+  "passed": 16,
+  "pass_rate": 0.8,
+  "ci_low": 0.5839782779742401,
+  "ci_high": 0.9193436467288,
+  "compile_errors": 4,
+  "runtime_errors": 0,
+  "test_failures": 0,
+  "skipped": 0,
+  "bug_type_stats": {
+    "wrong_data_structure": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_logic": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_condition": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_initialization": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_base_case": {
+      "total": 1,
+      "passed": 1
+    },
+    "missing_edge_case": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_operator": {
+      "total": 1,
+      "passed": 1
+    },
+    "version_compat": {
+      "total": 1,
+      "passed": 1
+    },
+    "type_conversion": {
+      "total": 6,
+      "passed": 2
+    },
+    "file_io": {
+      "total": 2,
+      "passed": 2
+    },
+    "index_error": {
+      "total": 1,
+      "passed": 1
+    }
+  },
+  "results": [
+    {
+      "idx": 0,
+      "func": "two_sum",
+      "bug_type": "wrong_data_structure",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 203
+    },
+    {
+      "idx": 1,
+      "func": "is_valid",
+      "bug_type": "wrong_logic",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 298
+    },
+    {
+      "idx": 2,
+      "func": "merge_two_lists",
+      "bug_type": "wrong_condition",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 258
+    },
+    {
+      "idx": 3,
+      "func": "max_subarray",
+      "bug_type": "wrong_initialization",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 209
+    },
+    {
+      "idx": 4,
+      "func": "climb_stairs",
+      "bug_type": "wrong_base_case",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 101
+    },
+    {
+      "idx": 5,
+      "func": "longest_palindrome",
+      "bug_type": "missing_edge_case",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 406
+    },
+    {
+      "idx": 6,
+      "func": "max_area",
+      "bug_type": "wrong_operator",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 341
+    },
+    {
+      "idx": 7,
+      "func": "three_sum",
+      "bug_type": "missing_edge_case",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 728
+    },
+    {
+      "idx": 8,
+      "func": "remove_duplicates",
+      "bug_type": "wrong_initialization",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 225
+    },
+    {
+      "idx": 9,
+      "func": "search_insert",
+      "bug_type": "wrong_condition",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 299
+    },
+    {
+      "idx": 10,
+      "func": "unknown",
+      "bug_type": "version_compat",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 255
+    },
+    {
+      "idx": 11,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 327
+    },
+    {
+      "idx": 12,
+      "func": "foo",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: illegal target for annotation (<input>, line 2)",
+      "steps_count": 1,
+      "code_length": 185
+    },
+    {
+      "idx": 13,
+      "func": "__init__",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 10)",
+      "steps_count": 1,
+      "code_length": 680
+    },
+    {
+      "idx": 14,
+      "func": "__init__",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)? (<input>, line 8)",
+      "steps_count": 1,
+      "code_length": 984
+    },
+    {
+      "idx": 15,
+      "func": "unknown",
+      "bug_type": "type_conversion",
+      "status": "fail",
+      "error_type": "compile",
+      "error_msg": "SyntaxError: invalid syntax (<input>, line 1)",
+      "steps_count": 1,
+      "code_length": 217
+    },
+    {
+      "idx": 16,
+      "func": "unknown",
+      "bug_type": "file_io",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 166
+    },
+    {
+      "idx": 17,
+      "func": "kill_photoshop",
+      "bug_type": "type_conversion",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 150
+    },
+    {
+      "idx": 18,
+      "func": "unknown",
+      "bug_type": "index_error",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 435
+    },
+    {
+      "idx": 19,
+      "func": "save_data",
+      "bug_type": "file_io",
+      "status": "pass",
+      "error_type": "",
+      "error_msg": "",
+      "steps_count": 1,
+      "code_length": 153
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+keyword=test_iter_slices
+
+tests/test_utils.py:656:def test_iter_slices(value, length):

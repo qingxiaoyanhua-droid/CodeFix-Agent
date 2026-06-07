@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeFix Agent</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --border: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --error: #f85149;
+      --purple: #bc8cff;
+      --radius: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+
+    /* === Top Bar === */
+    .topbar {
+      height: 52px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .topbar-logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+
+    .topbar-logo span {
+      color: var(--accent);
+    }
+
+    .topbar-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+
+    .topbar-status.disconnected .status-dot {
+      background: var(--error);
+    }
+
+    /* === Main Layout === */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* === Sidebar === */
+    .sidebar {
+      width: 240px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-section {
+      padding: 12px;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 8px;
+    }
+
+    .btn-new {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-new:hover { background: var(--accent-hover); }
+
+    .session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 8px 8px;
+    }
+
+    .session-item {
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      margin-bottom: 2px;
+      transition: background 0.1s;
+    }
+
+    .session-item:hover { background: var(--bg-tertiary); }
+    .session-item.active { background: var(--bg-tertiary); border: 1px solid var(--border); }
+
+    .session-item-name {
+      font-size: 13px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session-item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* User Profile in Sidebar */
+    .profile-card {
+      background: var(--bg-tertiary);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin: 8px;
+    }
+
+    .profile-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 12px;
+    }
+
+    .profile-stat-label { color: var(--text-secondary); }
+    .profile-stat-value { color: var(--text-primary); font-weight: 600; }
+
+    .profile-bar {
+      height: 4px;
+      background: var(--bg-primary);
+      border-radius: 2px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+
+    .profile-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    /* === Chat Area === */
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .msg {
+      display: flex;
+      gap: 12px;
+      max-width: 80%;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .msg-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .msg.user .msg-avatar { background: var(--accent); color: #fff; }
+    .msg.agent .msg-avatar { background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--success); }
+
+    .msg-content {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      line-height: 1.6;
+    }
+
+    .msg.user .msg-content {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .msg-content code {
+      background: rgba(0,0,0,0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12px;
+    }
+
+    .msg-content pre {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 8px;
+      overflow-x: auto;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .msg-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .msg-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+
+    /* Iteration Steps */
+    .iteration-block {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-top: 8px;
+    }
+
+    .iteration-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .iteration-badge {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .iteration-badge.success { border-color: var(--success); color: var(--success); }
+    .iteration-badge.fail { border-color: var(--error); color: var(--error); }
+    .iteration-badge.running { border-color: var(--warning); color: var(--warning); }
+
+    .step-item {
+      display: flex;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 12px;
+      align-items: flex-start;
+    }
+
+    .step-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .step-icon.pass { background: var(--success); color: #fff; }
+    .step-icon.fail { background: var(--error); color: #fff; }
+    .step-icon.skip { background: var(--text-muted); color: #fff; }
+    .step-icon.run { background: var(--warning); color: #fff; }
+
+    /* === Bottom Input === */
+    .input-area {
+      padding: 16px 20px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+    }
+
+    .input-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .input-tab {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+
+    .input-tab.active {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border-color: var(--accent);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-field {
+      flex: 1;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .input-field:focus { border-color: var(--accent); }
+
+    .input-field::placeholder { color: var(--text-muted); }
+
+    .btn-send {
+      padding: 10px 20px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-send:hover { background: var(--accent-hover); }
+    .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* === Memory Panel (Right) === */
+    .memory-panel {
+      width: 260px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .memory-section {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .memory-section:last-child { border-bottom: none; flex: 1; overflow-y: auto; }
+
+    .memory-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin: 2px;
+      border: 1px solid;
+    }
+
+    .memory-tag.l2 { background: rgba(210,153,34,0.1); border-color: var(--warning); color: var(--warning); }
+    .memory-tag.l3 { background: rgba(88,166,255,0.1); border-color: var(--accent); color: var(--accent); }
+    .memory-tag.rag { background: rgba(188,140,255,0.1); border-color: var(--purple); color: var(--purple); }
+
+    /* === Fix Result === */
+    .fix-result {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: 8px;
+    }
+
+    .fix-result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .fix-result pre {
+      padding: 12px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 12px;
+    }
+
+    .empty-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .empty-state h3 {
+      font-size: 15px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.5;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* API Key Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 400px;
+      max-width: 90vw;
+    }
+
+    .modal h3 { margin-bottom: 12px; font-size: 16px; }
+    .modal p { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+    .modal input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      font-size: 13px;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    .modal input:focus { border-color: var(--accent); }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn-secondary {
+      padding: 8px 16px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* Loader */
+    .loader {
+      display: inline-flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .loader span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      animation: bounce 1.2s infinite;
+    }
+
+    .loader span:nth-child(2) { animation-delay: 0.15s; }
+    .loader span:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-4px); }
+    }
+
+    /* ======= Streaming SSE Progress ======= */
+    .stream-progress {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      width: 100%;
+      max-width: 700px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .stream-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .stream-spinner {
+      font-size: 16px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .stream-status {
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .stream-events {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .stream-event {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px 10px;
+      background: var(--bg-primary);
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.5;
+      animation: fadeIn 0.15s ease;
+    }
+
+    .ev-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ev-phase { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .ev-cot    { background: rgba(188,140,255,0.15); color: var(--purple); }
+    .ev-code  { background: rgba(63,185,80,0.15); color: var(--success); }
+    .ev-pass   { background: rgba(63,185,80,0.15); color: var(--success); }
+    .ev-fail   { background: rgba(248,81,73,0.15); color: var(--error); }
+    .ev-feedback { background: rgba(210,153,34,0.15); color: var(--warning); }
+    .ev-mem    { background: rgba(88,166,255,0.1); color: var(--accent); }
+    .ev-error  { background: rgba(248,81,73,0.15); color: var(--error); }
+
+    .ev-cot-text {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 60px;
+      overflow: hidden;
+    }
+
+    .ev-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .ev-error {
+      color: var(--error);
+      font-size: 11px;
+    }
+
+    .ev-feedback-box {
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .ev-fb-status { color: var(--text-secondary); }
+    .ev-fb-hint   { color: var(--text-primary); margin-top: 4px; }
+
+    .ev-mem-items { margin-top: 4px; padding-left: 8px; }
+    .ev-mem-item  { color: var(--text-muted); font-size: 11px; }
+
+    .ev-final-code {
+      margin-top: 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13px;
+      z-index: 200;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error { border-color: var(--error); color: var(--error); }
+    .toast.success { border-color: var(--success); color: var(--success); }
+  </style>
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div class="modal-overlay" id="apiKeyModal">
+  <div class="modal">
+    <h3>设置 API Key</h3>
+    <p>请输入您的 CodeFix API Key，或联系管理员获取。<br>若无 API Key，可使用 <code>--no-auth</code> 模式启动服务。</p>
+    <input type="password" id="apiKeyInput" placeholder="cfx_xxxxxxxxxxxxxxxx">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="useNoAuth()">跳过（无认证模式）</button>
+      <button class="btn-send" onclick="saveApiKey()">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-logo">Code<span>Fix</span> Agent</div>
+  <div class="topbar-status" id="connectionStatus">
+    <div class="status-dot"></div>
+    <span id="statusText">已连接</span>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="main">
+
+  <!-- Left Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">会话</div>
+      <button class="btn-new" onclick="newSession()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新建修复
+      </button>
+    </div>
+
+    <div class="session-list" id="sessionList">
+      <!-- Sessions injected here -->
+    </div>
+
+    <div class="profile-card" id="profileCard" style="display:none">
+      <div class="sidebar-title" style="margin-bottom:8px">用户画像</div>
+      <div class="profile-stat">
+        <span class="profile-stat-label">总修复数</span>
+        <span class="profile-stat-value" id="statTotal">0</span>
+      </div>
+      <div class="profile-stat">
+        <span class="profile-stat-label">成功率</span>
+        <span class="profile-stat-value" id="statSuccess">--%</span>
+      </div>
+      <div class="profile-bar">
+        <div class="profile-bar-fill" id="successBar" style="width:0%"></div>
+      </div>
+      <div class="profile-stat" style="margin-top:8px">
+        <span class="profile-stat-label">偏好 bug 类型</span>
+      </div>
+      <div id="bugTypePrefs" style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">
+        <!-- Tags injected here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Area -->
+  <div class="chat-area">
+    <div class="chat-messages" id="chatMessages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">&#x1F9E9;</div>
+        <h3>CodeFix Agent</h3>
+        <p>输入 bug 描述或代码，即可开始智能修复。支持会话记忆和上下文关联。</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-tabs">
+        <button class="input-tab active" id="tabSimple" onclick="switchTab('simple')">简单模式</button>
+        <button class="input-tab" id="tabCode" onclick="switchTab('code')">代码模式</button>
+        <button class="input-tab" id="tabHistory" onclick="switchTab('history')">上下文模式</button>
+      </div>
+      <div class="input-row">
+        <textarea class="input-field" id="userInput" rows="3"
+          placeholder="描述一下你遇到的 bug... (Shift+Enter 换行，Enter 发送)"
+          onkeydown="handleKeyDown(event)"></textarea>
+        <button class="btn-send" id="sendBtn" onclick="sendMessage()">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Memory Panel -->
+  <div class="memory-panel">
+    <div class="memory-section">
+      <div class="sidebar-title">当前会话上下文</div>
+      <div id="contextInfo" style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
+        无活动会话
+      </div>
+    </div>
+
+    <div class="memory-section">
+      <div class="sidebar-title">L2 反思记忆</div>
+      <div id="l2Memory" style="font-size:12px; color:var(--text-muted);">
+        暂无
+      </div>
+    </div>
+
+    <div class="memory-section">
+      <div class="sidebar-title">L3 技能记忆</div>
+      <div id="l3Memory" style="font-size:12px; color:var(--text-muted);">
+        暂无
+      </div>
+    </div>
+
+    <div class="memory-section">
+      <div class="sidebar-title">RAG 检索结果</div>
+      <div id="ragResults" style="font-size:12px; color:var(--text-muted);">
+        暂无
+      </div>
+    </div>
+
+    <div class="memory-section">
+      <div class="sidebar-title">最近修复记录</div>
+      <div id="recentFixes" style="font-size:12px; color:var(--text-muted);">
+        暂无
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ============ State ============
+  const API_BASE = 'http://localhost:8000';
+  let apiKey = localStorage.getItem('cfx_api_key') || '';
+  let currentSessionId = localStorage.getItem('cfx_current_session') || '';
+  let sessions = JSON.parse(localStorage.getItem('cfx_sessions') || '[]');
+  let isLoading = false;
+  let currentTab = 'simple';
+
+  // ============ Init ============
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!apiKey) {
+      document.getElementById('apiKeyModal').classList.remove('hidden');
+    } else {
+      loadSessions();
+      if (currentSessionId) restoreSession(currentSessionId);
+    }
+  });
+
+  // ============ API Helpers ============
+  function apiHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    if (apiKey) h['X-API-Key'] = apiKey;
+    return h;
+  }
+
+  async function apiPost(path, body) {
+    const resp = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(err || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  }
+
+  async function apiGet(path) {
+    const url = `${API_BASE}${path}`;
+    const resp = await fetch(url, { headers: apiHeaders() });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }
+
+  // ============ API Key ============
+  function saveApiKey() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (key) {
+      apiKey = key;
+      localStorage.setItem('cfx_api_key', key);
+    }
+    document.getElementById('apiKeyModal').classList.add('hidden');
+    loadSessions();
+  }
+
+  function useNoAuth() {
+    apiKey = '';
+    localStorage.removeItem('cfx_api_key');
+    document.getElementById('apiKeyModal').classList.add('hidden');
+    loadSessions();
+  }
+
+  // ============ Sessions ============
+  async function loadSessions() {
+    try {
+      const data = await apiGet('/sessions');
+      sessions = data.sessions || [];
+      localStorage.setItem('cfx_sessions', JSON.stringify(sessions));
+      renderSessionList();
+      updateProfile();
+    } catch (e) {
+      // API not available, show local sessions
+      renderSessionList();
+    }
+  }
+
+  function renderSessionList() {
+    const el = document.getElementById('sessionList');
+    if (!sessions.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px 10px;">暂无会话记录</div>';
+      return;
+    }
+    el.innerHTML = sessions.slice(0, 20).map(s => `
+      <div class="session-item ${s.session_id === currentSessionId ? 'active' : ''}"
+           onclick="restoreSession('${s.session_id}')">
+        <div class="session-item-name">${s.bug_description || '会话 ' + s.session_id}</div>
+        <div class="session-item-meta">${s.updated_at ? formatTime(s.updated_at) : ''} · ${s.status || '进行中'}</div>
+      </div>
+    `).join('');
+  }
+
+  function newSession() {
+    currentSessionId = 'sess_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('cfx_current_session', currentSessionId);
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('chatMessages').innerHTML = '';
+    document.getElementById('contextInfo').textContent = '新会话已创建，等待输入...';
+    clearMemoryPanel();
+    renderSessionList();
+    showToast('新会话已创建', 'success');
+  }
+
+  async function restoreSession(sessionId) {
+    currentSessionId = sessionId;
+    localStorage.setItem('cfx_current_session', sessionId);
+    try {
+      const data = await apiGet(`/sessions/${sessionId}`);
+      if (data.event_count > 0) {
+        document.getElementById('emptyState').style.display = 'none';
+        renderSessionHistory(data.events);
+      }
+      updateContextPanel(data.meta);
+    } catch (e) {
+      // No API data, just show empty state
+      document.getElementById('emptyState').style.display = 'none';
+    }
+    renderSessionList();
+  }
+
+  function renderSessionHistory(events) {
+    const container = document.getElementById('chatMessages');
+    container.innerHTML = '';
+    events.forEach(ev => {
+      if (ev.type === 'user_message') {
+        appendMessage('user', ev.content, ev.timestamp);
+      } else if (ev.type === 'model_output') {
+        appendMessage('agent', ev.content, ev.timestamp);
+      } else if (ev.type === 'agent_result') {
+        showFixResult(ev.result);
+      } else if (ev.type === 'compact_boundary') {
+        appendSystemMsg(`[上下文已压缩] ${ev.summary}`, ev.timestamp);
+      }
+    });
+    scrollToBottom();
+  }
+
+  // ============ Send Message (Streaming SSE) ============
+  async function sendMessage() {
+    if (isLoading) return;
+    const input = document.getElementById('userInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    if (!currentSessionId) newSession();
+
+    const tab = currentTab;
+    const body = tab === 'simple'
+      ? { bug_description: text }
+      : tab === 'code'
+      ? { bug_description: extractBugDesc(text), buggy_code: extractCode(text) }
+      : { bug_description: text, session_id: currentSessionId };
+
+    // Show user message immediately
+    appendMessage('user', text);
+    input.value = '';
+    setLoading(true);
+
+    // Live progress message that we'll update as events arrive
+    const progressDiv = appendRaw(`<div class="stream-progress" id="streamProgress">
+      <div class="stream-header">
+        <span class="stream-spinner">⟳</span>
+        <span class="stream-status" id="streamStatus">正在启动 Agent...</span>
+      </div>
+      <div class="stream-events" id="streamEvents"></div>
+    </div>`);
+    scrollToBottom();
+
+    try {
+      // Use streaming SSE endpoint
+      const resp = await fetch(`${API_BASE}/fix/stream`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify(body),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+
+      // Accumulate SSE lines (each "data: ...\n" may span multiple chunks)
+      let buffer = '';
+      const streamEvents = document.getElementById('streamEvents');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';  // incomplete last line stays in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6);  // strip "data: "
+          if (!jsonStr.trim()) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            // Route to appropriate UI updater
+            updateStreamUI(event, streamEvents);
+          } catch (e) {
+            console.warn('[SSE parse error]', e, jsonStr);
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback to non-streaming endpoint
+      try {
+        const data = await apiPost('/fix', body);
+        document.getElementById('streamProgress')?.remove();
+        appendMessage('agent', buildAgentSummary(data));
+        showFixResult(data);
+        updateContextPanel({
+          session_id: currentSessionId,
+          iterations: data.total_iterations,
+          success: data.success,
+        });
+      } catch (e2) {
+        document.getElementById('streamProgress')?.remove();
+        appendMessage('agent', `请求失败: ${e2.message || e.message}`);
+      }
+    } finally {
+      // Remove spinner and finalize
+      const spinner = document.querySelector('.stream-spinner');
+      const status = document.getElementById('streamStatus');
+      if (spinner) spinner.textContent = '✓';
+      if (status) status.textContent = '完成';
+      setLoading(false);
+      await loadSessions();
+    }
+  }
+
+  // Update streaming UI based on event type
+  function updateStreamUI(event, container) {
+    const status = document.getElementById('streamStatus');
+    const appendEvent = (html) => {
+      const el = document.createElement('div');
+      el.className = 'stream-event';
+      el.innerHTML = html;
+      container.appendChild(el);
+      scrollToBottom();
+    };
+
+    switch (event.type || event.phase) {
+      case 'phase':
+      case 'iteration_start':
+        if (status) status.textContent = `🔄 迭代 ${event.iteration || 1} 进行中...`;
+        appendEvent(`<span class="ev-badge ev-phase">🔄 迭代 ${event.iteration} 开始</span>`);
+        break;
+
+      case 'cot_generated':
+        if (status) status.textContent = `⏳ 正在分析 CoT 推理...`;
+        // Show first 300 chars of CoT reasoning
+        const cot = (event.cot_text || '').slice(0, 300);
+        appendEvent(`<span class="ev-badge ev-cot">🤖 小模型推理 (${event.iteration})</span><pre class="ev-cot-text">${escapeHtml(cot)}${cot.length >= 300 ? '...' : ''}</pre>`);
+        break;
+
+      case 'code_extracted':
+        if (status) status.textContent = `⏳ 代码提取完成，准备验证...`;
+        appendEvent(`<span class="ev-badge ev-code">📝 代码提取 ${event.has_code ? '✅' : '❌'}</span><span class="ev-meta">${event.step_count} 步推理</span>`);
+        break;
+
+      case 'compile_result':
+        const icon = event.passed ? '✅' : event.success ? '⚠️' : '❌';
+        const label = event.passed ? 'PASS' : 'FAIL';
+        const tests = event.passed_tests != null
+          ? ` (${event.passed_tests}/${event.total_tests})`
+          : '';
+        if (status) status.textContent = `${icon} 编译/测试 ${label}`;
+        appendEvent(
+          `<span class="ev-badge ${event.passed ? 'ev-pass' : 'ev-fail'}">${icon} ${label}${tests}</span>` +
+          (event.error_message ? `<span class="ev-error">${escapeHtml(event.error_message.slice(0, 100))}</span>` : '')
+        );
+        break;
+
+      case 'large_model_feedback':
+        if (status) status.textContent = `💡 大模型反馈已生成`;
+        appendEvent(
+          `<span class="ev-badge ev-feedback">💡 大模型反馈</span>` +
+          `<div class="ev-feedback-box">` +
+          `<div class="ev-fb-status">状态: <b>${event.status || '?'}</b></div>` +
+          (event.hint ? `<div class="ev-fb-hint">💬 ${escapeHtml(event.hint)}</div>` : '') +
+          `</div>`
+        );
+        break;
+
+      case 'memory_hit':
+        const memIcon = event.count > 0 ? '🧠' : '○';
+        if (status && event.count > 0) status.textContent = `🧠 记忆命中 ${event.count}`;
+        appendEvent(
+          `<span class="ev-badge ev-mem">${memIcon} ${event.pool} 命中 ${event.count} 条</span>` +
+          (event.items && event.items.length > 0
+            ? `<div class="ev-mem-items">${event.items.slice(0, 2).map(it => `<div class="ev-mem-item">• ${escapeHtml(JSON.stringify(it).slice(0, 60))}</div>`).join('')}</div>`
+            : '')
+        );
+        break;
+
+      case 'done':
+        if (status) status.textContent = event.success ? '✅ 修复成功' : '❌ 修复完成';
+        appendEvent(
+          `<span class="ev-badge ${event.success ? 'ev-pass' : 'ev-fail'}">${event.success ? '✅ 修复成功' : '⚠️ 未通过'}</span>` +
+          `<span class="ev-meta">${event.total_iterations} 迭代 · ${event.total_time_ms ? (event.total_time_ms / 1000).toFixed(1) + 's' : ''}</span>`
+        );
+        // Show final code
+        if (event.fixed_code) {
+          appendEvent(
+            `<div class="fix-result-header">修复代码</div>` +
+            `<pre class="ev-final-code"><code>${escapeHtml(event.fixed_code)}</code></pre>`
+          );
+        }
+        // Update context panel
+        updateContextPanel({
+          session_id: event.session_id,
+          iterations: event.total_iterations,
+          success: event.success,
+          used_reflections: event.used_reflections,
+          used_skills: event.used_skills,
+        });
+        currentSessionId = event.session_id || currentSessionId;
+        localStorage.setItem('cfx_current_session', currentSessionId);
+        break;
+
+      case 'error':
+        if (status) status.textContent = `❌ 出错: ${event.message}`;
+        appendEvent(`<span class="ev-badge ev-error">❌ 错误: ${escapeHtml(event.message)}</span>`);
+        break;
+
+      case 'heartbeat':
+        // Silent keep-alive, no UI update
+        break;
+    }
+  }
+
+  function buildAgentSummary(data) {
+    const status = data.success ? '✅ 修复成功' : '❌ 未能自动修复';
+    let s = `${status}\n`;
+    s += `迭代次数: ${data.total_iterations} | `;
+    s += `耗时: ${(data.total_time_ms / 1000).toFixed(1)}s\n`;
+    if (data.used_reflections > 0) s += `L2 反思命中: ${data.used_reflections} 次\n`;
+    if (data.used_skills && data.used_skills.length > 0) s += `L3 技能命中: ${data.used_skills.length} 个\n`;
+    if (data.compute_savings) s += `节省算力: ${(data.compute_savings * 100).toFixed(0)}%\n`;
+    return s;
+  }
+
+  function showFixResult(data) {
+    if (!data.fixed_code) return;
+
+    // Show iteration steps
+    if (data.iterations && data.iterations.length > 0) {
+      data.iterations.forEach((iter, i) => {
+        const success = iter.execution_result?.success;
+        const badge = success ? 'pass' : 'fail';
+        const label = success ? 'PASS' : 'FAIL';
+        const html = `
+          <div class="iteration-block">
+            <div class="iteration-header">
+              <span class="iteration-badge ${badge}">${label}</span>
+              <span>迭代 ${iter.iteration}</span>
+            </div>
+            ${iter.cot_steps && iter.cot_steps.length > 0 ? `
+              ${iter.cot_steps.slice(0, 3).map(step => `
+                <div class="step-item">
+                  <div class="step-icon ${success ? 'pass' : 'fail'}">${success ? '✓' : '✗'}</div>
+                  <span>${escapeHtml(step.content || step.description || '推理步骤')}</span>
+                </div>
+              `).join('')}
+              ${iter.cot_steps.length > 3 ? `<div class="step-item" style="color:var(--text-muted)">...还有 ${iter.cot_steps.length - 3} 个步骤</div>` : ''}
+            ` : ''}
+          </div>
+        `;
+        appendRaw(html);
+      });
+    }
+
+    // Show fixed code
+    const html = `
+      <div class="fix-result">
+        <div class="fix-result-header">
+          <span style="color:var(--success)">${data.success ? '✓ 修复代码' : '未通过测试'}</span>
+          <span style="color:var(--text-muted);font-size:11px">${data.total_iterations} 次迭代</span>
+        </div>
+        <pre><code>${escapeHtml(data.fixed_code)}</code></pre>
+      </div>
+    `;
+    appendRaw(html);
+    scrollToBottom();
+  }
+
+  // ============ Memory Panel ============
+  function clearMemoryPanel() {
+    document.getElementById('l2Memory').innerHTML = '暂无';
+    document.getElementById('l3Memory').innerHTML = '暂无';
+    document.getElementById('ragResults').innerHTML = '暂无';
+  }
+
+  async function updateContextPanel(meta) {
+    if (!meta) return;
+    document.getElementById('contextInfo').innerHTML = `
+      <div>会话ID: <code>${meta.session_id || currentSessionId}</code></div>
+      <div>迭代: ${meta.iterations || 0}</div>
+      <div>状态: ${meta.success ? '✅ 成功' : '⏳ 进行中'}</div>
+      ${meta.used_reflections ? `<div>L2 命中: ${meta.used_reflections} 次</div>` : ''}
+      ${meta.used_skills && meta.used_skills.length ? `<div>L3 命中: ${meta.used_skills.length} 个</div>` : ''}
+    `;
+  }
+
+  function updateProfile() {
+    if (!sessions.length) {
+      document.getElementById('profileCard').style.display = 'none';
+      return;
+    }
+    document.getElementById('profileCard').style.display = 'block';
+    const total = sessions.length;
+    const successCount = sessions.filter(s => s.success).length;
+    const rate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+    document.getElementById('statTotal').textContent = total;
+    document.getElementById('statSuccess').textContent = rate + '%';
+    document.getElementById('successBar').style.width = rate + '%';
+
+    // Bug type distribution
+    const typeCount = {};
+    sessions.forEach(s => {
+      const type = s.bug_type || 'unknown';
+      typeCount[type] = (typeCount[type] || 0) + 1;
+    });
+    const topTypes = Object.entries(typeCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    document.getElementById('bugTypePrefs').innerHTML = topTypes.map(([type, count]) =>
+      `<span class="memory-tag l2">${type} (${count})</span>`
+    ).join('') || '<span style="color:var(--text-muted);font-size:11px">数据不足</span>';
+  }
+
+  // ============ UI Helpers ============
+  function appendMessage(role, content, time) {
+    const html = `
+      <div class="msg ${role}">
+        <div class="msg-avatar">${role === 'user' ? 'U' : 'AI'}</div>
+        <div>
+          <div class="msg-content">${formatContent(content)}</div>
+          <div class="msg-time">${time ? formatTime(time) : now()}</div>
+        </div>
+      </div>
+    `;
+    appendRaw(html);
+    scrollToBottom();
+  }
+
+  function appendSystemMsg(content, time) {
+    appendRaw(`<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:8px 0;">${content}</div>`);
+  }
+
+  function appendRaw(html) {
+    document.getElementById('chatMessages').insertAdjacentHTML('beforeend', html);
+  }
+
+  function formatContent(text) {
+    if (!text) return '';
+    // Escape HTML first
+    let s = escapeHtml(text);
+    // Code blocks
+    s = s.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Inline code
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Newlines
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function scrollToBottom() {
+    const el = document.getElementById('chatMessages');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setLoading(loading) {
+    isLoading = loading;
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = loading;
+    btn.innerHTML = loading
+      ? '<div class="loader"><span></span><span></span><span></span></div>'
+      : '发送';
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    ['simple', 'code', 'history'].forEach(t => {
+      document.getElementById('tab' + capitalize(t)).classList.toggle('active', t === tab);
+    });
+    const input = document.getElementById('userInput');
+    if (tab === 'code') {
+      input.placeholder = '请输入：\n描述: [bug描述]\n\n代码:\n[你的有bug代码]';
+      input.rows = 6;
+    } else if (tab === 'history') {
+      input.placeholder = '继续之前的修复任务...(将使用会话上下文)';
+      input.rows = 2;
+    } else {
+      input.placeholder = '描述一下你遇到的 bug...';
+      input.rows = 3;
+    }
+  }
+
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  function extractBugDesc(text) {
+    const m = text.match(/描述[：:]\s*(.+?)(?:\n\n代码:|\n代码)/s);
+    return m ? m[1].trim() : text.split('\n\n代码:')[0].replace(/描述[：:]\s*/, '').trim();
+  }
+
+  function extractCode(text) {
+    const m = text.match(/代码:\s*([\s\S]+)$/);
+    return m ? m[1].trim() : '';
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  }
+
+  function now() {
+    const d = new Date();
+    return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  }
+
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // Connection status check
+  setInterval(async () => {
+    try {
+      await fetch(`${API_BASE}/health`, { method: 'GET', headers: apiHeaders() });
+      document.getElementById('connectionStatus').classList.remove('disconnected');
+      document.getElementById('statusText').textContent = '已连接';
+    } catch {
+      document.getElementById('connectionStatus').classList.add('disconnected');
+      document.getElementById('statusText').textContent = '未连接';
+    }
+  }, 10000);
+</script>
+</body>
+</html>

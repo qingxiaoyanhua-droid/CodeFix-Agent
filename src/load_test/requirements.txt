@@ -1,0 +1,11 @@
+# 依赖
+
+```
+# 网关
+pip install fastapi uvicorn httpx pydantic
+
+# 压测
+pip install locust
+
+# JWT (Python 内置 hmac + hashlib，无需额外安装)
+```

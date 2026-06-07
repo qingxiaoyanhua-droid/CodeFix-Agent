@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "file": "src/sandbox/shell_sandbox.py",
+  "changelog": [
+    {
+      "version": "1.0.1",
+      "date": "2026-06-03",
+      "author": "codefix-agent",
+      "star_analysis": {
+        "P0-1": {
+          "situation": "项目面向企业用户，代码修复场景下用户提交的代码可能是恶意或存在安全漏洞的代码。原有沙箱使用纯正则匹配检测危险Python调用，存在被字符串拼接、变量替换、base64混淆等方式绕过的风险。",
+          "task": "将Python危险检测从正则升级为结构化语义分析，消除静态字符串匹配的绕过路径，同时保持对shell语言的兼容。",
+          "action": [
+            "分析Claude Code等业界参考方案的7层安全模型，结合CodeFix实际场景筛选适合的防护层级",
+            "设计_DANGEROUS_BUILTINS_AST危险模块-属性映射表，覆盖os/subprocess/ctypes/threading等高危命名空间",
+            "使用ast.parse + ast.walk实现语法树遍历，精准识别Call/Attribute/Import节点中的危险调用链",
+            "保留正则作为fallback层，专门检测AST无法覆盖的混淆模式（如getattr(__builtins__, ...)）",
+            "针对Windows平台fallback到communicate()轮询，超时强制kill；Unix平台用select非阻塞读取"
+          ],
+          "result": "检测能力从字符串匹配升级为结构语义分析，绕过难度大幅提升；编译输出路径逃逸漏洞修复，安全防御纵深增强。"
+        },
+        "P0-2": {
+          "situation": "沙箱支持C/C++/Rust/Java等编译型语言，原有实现中编译命令（如gcc -o）直接拼接输出路径，攻击者可通过传入恶意路径参数（如-o /etc/x）将编译产物写到系统任意位置。",
+          "task": "在编译命令执行前增加路径守卫机制，确保输出文件始终在work_dir隔离目录内，无法逃逸到沙箱外部。",
+          "action": [
+            "分析路径穿越攻击的典型模式：绝对路径（/etc/x）、相对路径（../../../etc/x）、符号链接等",
+            "设计safe_name固定安全文件名策略，消除用户可控的路径参数",
+            "实现os.path.normpath + os.path.abspath双归一化，结合前缀匹配二次校验，即使命令参数含路径穿越也无法绕过",
+            "Java特殊处理：class文件名从源码中提取public class名，确保.class文件也在work_dir内"
+          ],
+          "result": "编译输出路径逃逸风险消除，达到与其他安全层同等防护水平。"
+        }
+      },
+      "design_thinking": {
+        "core_principle": "Defense-in-Depth（纵深防御）：不依赖单一安全层，每层都有独立检测和拦截能力，任意一层失效不影响整体安全。",
+        "ast_vs_regex": "正则适合检测命令字符串模式（如shell注入），AST适合检测代码结构语义（如Python危险调用）。两者互补，不是替代关系。",
+        "python_focus": "CodeFix核心场景是Python代码修复，Python的危险调用种类最多、绕过方式最丰富，因此投入最多安全设计精力。编译型语言相对简单，主要风险在文件写入。",
+        "performance_tradeoff": "AST解析相比正则有额外开销，但危险检测在沙箱中仅占μs级别，代码文件通常<100KB，解析时间可忽略不计。安全收益远大于性能代价。",
+        "platform_awareness": "Windows缺乏Linux原生隔离机制（cgroups/namespace），因此超时采用轮询+kill而非资源限制。后续可引入Job Objects作为P1改进。",
+        "future_roadmap": "P1引入Docker容器化执行编译语言，进一步物理隔离；P2引入seccomp/AppArmor/Linux Security Module限制系统调用。"
+      },
+      "technical_debt": [
+        "Windows进程组隔离缺失（Job Objects未实现）",
+        "内存/CPU限制在Windows上仅超时生效，无真实resource限制",
+        "网络调用黑名单仅覆盖urllib/requests，未覆盖socket/ftplib等底层库",
+        "AST检测未覆盖动态字符串构造的eval场景（如exec('pr' + 'int()')）"
+      ],
+      "changes": [
+        {
+          "id": "P0-1",
+          "category": "security",
+          "severity": "high",
+          "title": "Python危险检测：正则 → AST解析",
+          "description": "将Python危险调用检测从正则表达式匹配升级为 ast.parse 语法树分析，精确识别 os.system、subprocess.Popen、ctypes、eval、exec、__import__、threading.Thread、multiprocessing.Process、urllib/requests网络调用等危险结构。",
+          "diff": {
+            "removed": ["_PYTHON_DANGEROUS_BUILTINS 正则列表"],
+            "added": [
+              "_DANGEROUS_BUILTINS_AST 危险模块属性映射表",
+              "_DANGEROUS_BUILTINS_LITERAL 危险内置函数集合",
+              "_ast_check_python() 使用ast.walk遍历语法树检测危险调用",
+              "_regex_check_python() 仅作混淆模式fallback"
+            ]
+          },
+          "security_impact": "消除正则可绕过问题（字符串拼接、变量替换、base64混淆等），检测能力从字符串匹配升级为结构语义分析。"
+        },
+        {
+          "id": "P0-2",
+          "category": "security",
+          "severity": "high",
+          "title": "编译型语言输出路径守卫",
+          "description": "编译型语言（C/C++/Rust/Java）的二进制输出路径强制限制在 work_dir 内，并在编译前通过 os.path.abspath 前缀匹配二次校验，防止 gcc -o /etc/x 等路径穿越攻击。",
+          "diff": {
+            "removed": ["binary_path 直接拼接到 work_dir 无校验"],
+            "added": [
+              "safe_name 固定安全文件名生成逻辑",
+              "work_dir_abs / binary_abs 路径归一化 + 前缀校验",
+              "binary_abs 不在 work_dir_abs 前缀下则拒绝执行"
+            ]
+          },
+          "security_impact": "消除编译输出路径逃逸风险，即使编译器参数包含恶意路径也无法逃逸到沙箱外。"
+        }
+      ],
+      "roadmap_p1": [
+        "Windows进程组隔离（Job Objects）",
+        "Linux cgroups内存限制",
+        "network/socket模块加入黑名单",
+        "编译语言Docker化执行"
+      ]
+    }
+  ]
+}

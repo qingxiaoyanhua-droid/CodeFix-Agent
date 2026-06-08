@@ -1,0 +1,195 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -564,12 +564,12 @@ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+-    pos = 7
++    pos = 0
+     if slice_length is None or slice_length <= 0:
+         slice_length = len(string)
+     while pos < len(string):
+         yield string[pos : pos + slice_length]
+         pos += slice_length
+ 
+ @pytest.mark.parametrize(
+     "value, expected",
+     (
+         ("application/xml", ("application/xml", {})),
+         (
+             "application/json ; charset=utf-8",
+             ("application/json", {"charset": "utf-8"}),
+         ),
+         (
+             "application/json ; Charset=utf-8",
+             ("application/json", {"charset": "utf-8"}),
+         ),
+         ("text/plain", ("text/plain", {})),
+         (
+             "multipart/form-data; boundary = something ; boundary2='something_else' ; no_equals ",
+             (
+                 "multipart/form-data",
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+                     "no_equals": True,
+                 },
+             ),
+         ),
+         (
+             'multipart/form-data; boundary = something ; boundary2="something_else" ; no_equals ',
+             (
+                 "multipart/form-data",
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+                     "no_equals": True,
+                 },
+             ),
+         ),
+         (
+             "multipart/form-data; boundary = something ; 'boundary2=something_else' ; no_equals ",
+             (
+                 "multipart/form-data",
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+                     "no_equals": True,
+                 },
+             ),
+         ),
+         (
+             'multipart/form-data; boundary = something ; "boundary2=something_else" ; no_equals ',
+             (
+                 "multipart/form-data",
+                 {
+                     "boundary": "something",
+                     "boundary2": "something_else",
+                     "no_equals": True,
+                 },
+             ),
+         ),
+         ("application/json ; ; ", ("application/json", {})),
+     ),
+ )
+ def test__parse_content_type_header(value, expected):
+     assert _parse_content_type_header(value) == expected
+ 
+ 
+ @pytest.mark.parametrize(
+     "value, expected",
+     (
+         (CaseInsensitiveDict(), None),
+         (
+             CaseInsensitiveDict({"content-type": "application/json; charset=utf-8"}),
+             "utf-8",
+         ),
+         (CaseInsensitiveDict({"content-type": "text/plain"}), "ISO-8859-1"),
+     ),
+ )
+ def test_get_encoding_from_headers(value, expected):
+     assert get_encoding_from_headers(value) == expected
+ 
+ 
+ @pytest.mark.parametrize(
+     "value, length",
+     (
+         ("", 0),
+         ("T", 1),
+         ("Test", 4),
+         ("Cont", 0),
+         ("Other", -5),
+         ("Content", None),
+     ),
+ )
+ def test_iter_slices(value, length):
+     if length is None or (length <= 0 and len(value) > 0):
+         # Reads all content at once
+         assert len(list(iter_slices(value, length))) == 1
+     else:
+         assert len(list(iter_slices(value, 1))) == length
+ 
+ 
+ @pytest.mark.parametrize(
+     "value, expected",
+     (
+         (
+             '<http:/.../front.jpeg>; rel=front; type="image/jpeg"',
+             [{"url": "http:/.../front.jpeg", "rel": "front", "type": "image/jpeg"}],
+         ),
+         ("<http:/.../front.jpeg>", [{"url": "http:/.../front.jpeg"}]),
+         ("<http:/.../front.jpeg>;", [{"url": "http:/.../front.jpeg"}]),
+         (
+             '<http:/.../front.jpeg>; type="image/jpeg",<http://.../back.jpeg>;',
+             [
+                 {"url": "http:/.../front.jpeg", "type": "image/jpeg"},
+                 {"url": "http://.../back.jpeg"},
+             ],
+         ),
+         ("", []),
+     ),
+ )
+ def test_parse_header_links(value, expected):
+     assert parse_header_links(value) == expected
+ 
+ 
+ @pytest.mark.parametrize(
+     "value, expected",
+     (
+         ("example.com/path", "http://example.com/path"),
+         ("//example.com/path", "http://example.com/path"),
+         ("example.com:80", "http://example.com:80"),
+         (
+             "http://user:pass@example.com/path?query",
+             "http://user:pass@example.com/path?query",
+         ),
+         ("http://user@example.com/path?query", "http://user@example.com/path?query"),
+     ),
+ )
+ def test_prepend_scheme_if_needed(value, expected):
+     assert prepend_scheme_if_needed(value, "http") == expected
+ 
+ 
+ @pytest.mark.parametrize(
+     "value, expected",
+     (
+         ("T", "T"),
+         (b"T", "T"),
+         ("T", "T"),
+     ),
+ )
+ def test_to_native_string(value, expected):
+     assert to_native_string(value) == expected
+ 
+ 
+ @pytest.mark.parametrize(
+     "url, expected",
+     (
+         ("http://u:p@example.com/path?a=1#test", "http://example.com/path?a=1"),
+         ("http://example.com/path", "http://example.com/path"),
+         ("//u:p@example.com/path", "//example.com/path"),
+         ("//example.com/path", "//example.com/path"),
+         ("example.com/path", "//example.com/path"),
+         ("scheme:u:p@example.com/path", "scheme://example.com/path"),
+     ),
+ )
+ def test_urldefragauth(url, expected):
+     assert urldefragauth(url) == expected
+ 
+ 
+ @pytest.mark.parametrize(
+     "url, expected",
+     (
+         ("http://192.168.0.1:5000/", True),
+         ("http://192.168.0.1/", True),
+         ("http://172.16.1.1/", True),
+         ("http://172.16.1.1:5000/", True),
+         ("http://localhost.localdomain:5000/v1.0/", True),
+         ("http://google.com:6000/", True),
+         ("http://172.16.1.12/", False),
+         ("http://172.16.1.12:5000/", False),
+         ("http://google.com:5000/v1.0/", False),
+         ("file:///some/path/on/disk", True),
+     ),
+ )
+ def test_should_bypass_proxies(url, expected, monkeypatch):

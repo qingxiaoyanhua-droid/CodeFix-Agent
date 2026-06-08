@@ -1,0 +1,16 @@
+>>    1 | runs/20260128_110839_pytest_fast_0.txt:3:____________________________ test_iter_slices[T-1] _____________________________
+      2 | runs/20260128_110839_pytest_fast_0.txt:18:    def test_iter_slices(value, length):
+      3 | runs/20260128_110839_pytest_fast_0.txt:30:___________________________ test_iter_slices[Test-4] ___________________________
+      4 | runs/20260128_110839_pytest_fast_0.txt:45:    def test_iter_slices(value, length):
+      5 | runs/20260128_110839_pytest_fast_0.txt:57:___________________________ test_iter_slices[Cont-0] ___________________________
+      6 | runs/20260128_110839_pytest_fast_0.txt:72:    def test_iter_slices(value, length):
+      7 | runs/20260128_110839_pytest_fast_0.txt:82:__________________________ test_iter_slices[Other--5] __________________________
+      8 | runs/20260128_110839_pytest_fast_0.txt:97:    def test_iter_slices(value, length):
+      9 | runs/20260128_110839_pytest_fast_0.txt:107:________________________ test_iter_slices[Content-None] ________________________
+     10 | runs/20260128_110839_pytest_fast_0.txt:122:    def test_iter_slices(value, length):
+     11 | runs/20260128_110839_pytest_fast_0.txt:133:FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+     12 | runs/20260128_110839_pytest_fast_0.txt:134:FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+     13 | runs/20260128_110839_pytest_fast_0.txt:135:FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+     14 | runs/20260128_110839_pytest_fast_0.txt:136:FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+     15 | runs/20260128_110839_pytest_fast_0.txt:137:FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+     16 | tests/test_utils.py:656:def test_iter_slices(value, length):

@@ -1,0 +1,7 @@
+src/requests/utils.py:571:def iter_slices(string, slice_length):
+src/requests/models.py:61:    iter_slices,
+src/requests/models.py:846:        reused_chunks = iter_slices(self._content, chunk_size)
+tests/test_utils.py:31:    iter_slices,
+tests/test_utils.py:656:def test_iter_slices(value, length):
+tests/test_utils.py:659:        assert len(list(iter_slices(value, length))) == 1
+tests/test_utils.py:661:        assert len(list(iter_slices(value, 1))) == length

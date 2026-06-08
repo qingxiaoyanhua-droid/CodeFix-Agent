@@ -15,31 +15,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `CFG.to_dict()` for API responses and debugging.
   - `write_env_example()` generates `.env.example`.
   - `GRPO_CODEFIX_TRAIN_COT_PRM.py` now uses `CFG` instead of hardcoded values.
-  - **New**: `llm` sub-config (LLM Router settings: circuit breaker thresholds, backoff params, token tracker path).
-  - **New**: `cost` sub-config (cost tracking settings: default quota, alert webhook/email).
-
-- **`api/llm_router.py`** - LLM Router with circuit breaker, exponential backoff, and model degradation chain. **P0 核心特性**.
-  - **Per-model circuit breaker**: CLOSED → OPEN → HALF_OPEN state machine.
-    - `failure_threshold` (default 3): consecutive failures to trip the breaker.
-    - `success_threshold` (default 2): successes in half-open to recover.
-    - `open_timeout` (default 30s): time before transitioning OPEN → HALF_OPEN.
-  - **Exponential backoff with jitter**: base 1s × 2^attempt, cap 60s, ±50% jitter.
-  - **Model degradation chain**: `register_fallback_chain(["gpt-4o", "gpt-4o-mini"])`. Tries models in order; skips open circuits.
-  - **Retryable error detection**: auto-identifies rate limits (429), server errors (5xx), timeouts, connection issues.
-  - **Token usage tracking**: per-model `prompt_tokens`, `completion_tokens`, `total_cost_usd`.
-  - **Sync + async**: both `call()` and `acall()` supported.
-  - Helper wrappers: `wrap_ollama_for_router()`, `wrap_openai_for_router()`.
-  - Admin endpoints: `GET /router/stats`, `GET /router/circuit/{model}`, `POST /router/circuit/{model}/reset`.
-
-- **`api/token_tracker.py`** - Token usage tracker with per-API-key stats, cost calculation, and quota alerts. **P0 核心特性**.
-  - **Per-API-key tracking**: `prompt_tokens`, `completion_tokens`, `total_tokens`, `total_requests`, `total_cost_usd`.
-  - **Per-model breakdown**: each key tracks usage per model independently.
-  - **Cost calculation**: register model pricing (`cost_per_1k_input`, `cost_per_1k_output`); auto-compute USD per call.
-  - **Quota alerts**: three thresholds — 80% (WARNING), 95% (CRITICAL), 100% (EXCEEDED).
-  - **Alert callbacks**: webhook, email hook, or custom function; only fires on level escalation (not every request).
-  - **Persistence**: JSON file at `./runs/token_tracker.json`; survives process restarts.
-  - **Top consumers**: rank API keys by cost / tokens / request count.
-  - Admin endpoints: `GET /tokens/usage`, `GET /tokens/quota/{api_key}`, `GET /tokens/top-consumers`, `GET /tokens/alerts`, `PATCH /tokens/quota/{api_key}`.
 
 - **`session_manager.py`** - Session lifecycle, persistence, and metrics.
   - `start_session()` / `end_session()` with session tracking.
@@ -77,7 +52,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - `api_server.py`: `session_store` is now properly initialized and passed to `CoTReActAgent` (was previously `None`).
-- `config.py`: Fixed `Config` class — added explicit `__init__` with `super().__init__()` call so dataclass fields (`model`, `server`, `memory`, `training`, `agent`, `rag`, `llm`, `cost`) are properly instantiated as objects, not raw `Field` descriptors. Also removed redundant `CFG._load()` call at module bottom.
 
 ---
 

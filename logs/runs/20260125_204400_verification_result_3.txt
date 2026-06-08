@@ -1,0 +1,13 @@
+VALID: True
+Patch:
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -567,7 +567,7 @@ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+-    pos = 7
++    pos = 0
+     if slice_length is None or slice_length <= 0:
+         slice_length = len(string)
+     while pos < len(string):

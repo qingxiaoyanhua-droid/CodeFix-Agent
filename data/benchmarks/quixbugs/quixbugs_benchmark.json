@@ -1,0 +1,608 @@
+[
+  {
+    "name": "bitcount",
+    "buggy_code": "def bitcount(n):\n    count = 0\n    while n:\n        n ^= n - 1\n        count += 1\n    return count",
+    "fixed_code": "def bitcount(n):\n    count = 0\n    while n:\n        n &= n - 1\n        count += 1\n    return count",
+    "bug_type": "wrong_operator",
+    "tests": [
+      {
+        "function": "bitcount",
+        "input": [
+          0
+        ],
+        "output": 0
+      },
+      {
+        "function": "bitcount",
+        "input": [
+          1
+        ],
+        "output": 1
+      },
+      {
+        "function": "bitcount",
+        "input": [
+          7
+        ],
+        "output": 3
+      },
+      {
+        "function": "bitcount",
+        "input": [
+          255
+        ],
+        "output": 8
+      },
+      {
+        "function": "bitcount",
+        "input": [
+          128
+        ],
+        "output": 1
+      },
+      {
+        "function": "bitcount",
+        "input": [
+          1023
+        ],
+        "output": 10
+      }
+    ]
+  },
+  {
+    "name": "find_first_in_sorted",
+    "buggy_code": "def find_first_in_sorted(arr, x):\n    lo = 0\n    hi = len(arr)\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if x == arr[mid] and (mid == 0 or x != arr[mid - 1]):\n            return mid\n        elif x <= arr[mid]:\n            hi = mid\n        else:\n            lo = mid + 1\n    return -1",
+    "fixed_code": "def find_first_in_sorted(arr, x):\n    lo = 0\n    hi = len(arr) - 1\n    while lo <= hi:\n        mid = (lo + hi) // 2\n        if x == arr[mid] and (mid == 0 or x != arr[mid - 1]):\n            return mid\n        elif x <= arr[mid]:\n            hi = mid - 1\n        else:\n            lo = mid + 1\n    return -1",
+    "bug_type": "off_by_one",
+    "tests": [
+      {
+        "function": "find_first_in_sorted",
+        "input": [
+          [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          3
+        ],
+        "output": 2
+      },
+      {
+        "function": "find_first_in_sorted",
+        "input": [
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          1
+        ],
+        "output": 0
+      },
+      {
+        "function": "find_first_in_sorted",
+        "input": [
+          [
+            1,
+            3,
+            5,
+            7,
+            9
+          ],
+          5
+        ],
+        "output": 2
+      },
+      {
+        "function": "find_first_in_sorted",
+        "input": [
+          [],
+          1
+        ],
+        "output": -1
+      },
+      {
+        "function": "find_first_in_sorted",
+        "input": [
+          [
+            2,
+            4,
+            6,
+            8
+          ],
+          5
+        ],
+        "output": -1
+      },
+      {
+        "function": "find_first_in_sorted",
+        "input": [
+          [
+            1,
+            2,
+            3
+          ],
+          1
+        ],
+        "output": 0
+      }
+    ]
+  },
+  {
+    "name": "flatten",
+    "buggy_code": "def flatten(arr):\n    for x in arr:\n        if isinstance(x, list):\n            for y in flatten(x):\n                yield y\n        else:\n            yield flatten(x)",
+    "fixed_code": "def flatten(arr):\n    for x in arr:\n        if isinstance(x, list):\n            for y in flatten(x):\n                yield y\n        else:\n            yield x",
+    "bug_type": "wrong_variable",
+    "tests": [
+      {
+        "function": "flatten",
+        "input": [
+          [
+            [
+              1,
+              [
+                2
+              ]
+            ],
+            3
+          ]
+        ],
+        "output": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "function": "flatten",
+        "input": [
+          [
+            [
+              1
+            ],
+            2,
+            [
+              3,
+              [
+                4
+              ]
+            ]
+          ]
+        ],
+        "output": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "function": "flatten",
+        "input": [
+          [
+            [
+              [
+                1
+              ]
+            ]
+          ]
+        ],
+        "output": [
+          1
+        ]
+      },
+      {
+        "function": "flatten",
+        "input": [
+          [
+            [
+              1,
+              [
+                2,
+                [
+                  3
+                ]
+              ]
+            ]
+          ]
+        ],
+        "output": [
+          1,
+          2,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gcd",
+    "buggy_code": "def gcd(a, b):\n    if b:\n        return gcd(a % b, b)\n    else:\n        return a",
+    "fixed_code": "def gcd(a, b):\n    if b:\n        return gcd(b, a % b)\n    else:\n        return a",
+    "bug_type": "wrong_argument_order",
+    "tests": [
+      {
+        "function": "gcd",
+        "input": [
+          12,
+          8
+        ],
+        "output": 4
+      },
+      {
+        "function": "gcd",
+        "input": [
+          48,
+          18
+        ],
+        "output": 6
+      },
+      {
+        "function": "gcd",
+        "input": [
+          17,
+          13
+        ],
+        "output": 1
+      },
+      {
+        "function": "gcd",
+        "input": [
+          100,
+          25
+        ],
+        "output": 25
+      },
+      {
+        "function": "gcd",
+        "input": [
+          7,
+          0
+        ],
+        "output": 7
+      },
+      {
+        "function": "gcd",
+        "input": [
+          1,
+          1
+        ],
+        "output": 1
+      }
+    ]
+  },
+  {
+    "name": "is_valid_parenthesization",
+    "buggy_code": "def is_valid_parenthesization(parens):\n    depth = 0\n    for paren in parens:\n        if paren == '(':\n            depth += 1\n        else:\n            depth -= 1\n            if depth < 0:\n                return False\n    return True",
+    "fixed_code": "def is_valid_parenthesization(parens):\n    depth = 0\n    for paren in parens:\n        if paren == '(':\n            depth += 1\n        else:\n            depth -= 1\n            if depth < 0:\n                return False\n    return depth == 0",
+    "bug_type": "missing_check",
+    "tests": [
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          "(())"
+        ],
+        "output": true
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          "(()"
+        ],
+        "output": false
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          ")("
+        ],
+        "output": false
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          ""
+        ],
+        "output": true
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          "()"
+        ],
+        "output": true
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          ")()("
+        ],
+        "output": false
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          "((())"
+        ],
+        "output": false
+      },
+      {
+        "function": "is_valid_parenthesization",
+        "input": [
+          "()()"
+        ],
+        "output": true
+      }
+    ]
+  },
+  {
+    "name": "max_sublist_sum",
+    "buggy_code": "def max_sublist_sum(arr):\n    max_ending_here = 0\n    max_so_far = 0\n    for x in arr:\n        max_ending_here = max(0, max_ending_here + x)\n        max_so_far = max(max_so_far, max_ending_here)\n    return max_so_far",
+    "fixed_code": "def max_sublist_sum(arr):\n    if not arr:\n        return 0\n    max_ending_here = arr[0]\n    max_so_far = arr[0]\n    for x in arr[1:]:\n        max_ending_here = max(x, max_ending_here + x)\n        max_so_far = max(max_so_far, max_ending_here)\n    return max_so_far",
+    "bug_type": "wrong_initialization",
+    "tests": [
+      {
+        "function": "max_sublist_sum",
+        "input": [
+          [
+            -2,
+            1,
+            -3,
+            4,
+            -1,
+            2,
+            1,
+            -5,
+            4
+          ]
+        ],
+        "output": 6
+      },
+      {
+        "function": "max_sublist_sum",
+        "input": [
+          [
+            -1,
+            -2,
+            -3
+          ]
+        ],
+        "output": -1
+      },
+      {
+        "function": "max_sublist_sum",
+        "input": [
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        "output": 6
+      },
+      {
+        "function": "max_sublist_sum",
+        "input": [
+          [
+            -1
+          ]
+        ],
+        "output": -1
+      },
+      {
+        "function": "max_sublist_sum",
+        "input": [
+          [
+            5
+          ]
+        ],
+        "output": 5
+      },
+      {
+        "function": "max_sublist_sum",
+        "input": [
+          [
+            -3,
+            2,
+            -1
+          ]
+        ],
+        "output": 2
+      }
+    ]
+  },
+  {
+    "name": "sqrt",
+    "buggy_code": "def sqrt(x, epsilon):\n    approx = x / 2\n    while abs(x - approx) > epsilon:\n        approx = 0.5 * (approx + x / approx)\n    return approx",
+    "fixed_code": "def sqrt(x, epsilon):\n    approx = x / 2\n    while abs(approx * approx - x) > epsilon:\n        approx = 0.5 * (approx + x / approx)\n    return approx",
+    "bug_type": "wrong_expression",
+    "tests": []
+  },
+  {
+    "name": "quicksort",
+    "buggy_code": "def quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[0]\n    lesser = quicksort([x for x in arr[1:] if x < pivot])\n    greater = quicksort([x for x in arr[1:] if x > pivot])\n    return lesser + [pivot] + greater",
+    "fixed_code": "def quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[0]\n    lesser = quicksort([x for x in arr[1:] if x < pivot])\n    greater = quicksort([x for x in arr[1:] if x >= pivot])\n    return lesser + [pivot] + greater",
+    "bug_type": "off_by_one",
+    "tests": [
+      {
+        "function": "quicksort",
+        "input": [
+          [
+            3,
+            1,
+            2
+          ]
+        ],
+        "output": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "function": "quicksort",
+        "input": [
+          [
+            5,
+            3,
+            8,
+            1,
+            2
+          ]
+        ],
+        "output": [
+          1,
+          2,
+          3,
+          5,
+          8
+        ]
+      },
+      {
+        "function": "quicksort",
+        "input": [
+          []
+        ],
+        "output": []
+      },
+      {
+        "function": "quicksort",
+        "input": [
+          [
+            1
+          ]
+        ],
+        "output": [
+          1
+        ]
+      },
+      {
+        "function": "quicksort",
+        "input": [
+          [
+            2,
+            1
+          ]
+        ],
+        "output": [
+          1,
+          2
+        ]
+      },
+      {
+        "function": "quicksort",
+        "input": [
+          [
+            5,
+            3,
+            3,
+            1
+          ]
+        ],
+        "output": [
+          1,
+          3,
+          3,
+          5
+        ]
+      }
+    ]
+  },
+  {
+    "name": "shortest_path_lengths",
+    "buggy_code": "def shortest_path_lengths(graph, source):\n    dist = {source: 0}\n    queue = [source]\n    while queue:\n        node = queue.pop(0)\n        for neighbor in graph.get(node, []):\n            new_dist = dist[node] + 1\n            if neighbor not in dist or new_dist < dist[neighbor]:\n                dist[neighbor] = new_dist\n                queue.append(neighbor)\n    return dist",
+    "fixed_code": "def shortest_path_lengths(graph, source):\n    dist = {source: 0}\n    queue = [source]\n    while queue:\n        node = queue.pop(0)\n        for neighbor, weight in graph.get(node, []):\n            new_dist = dist[node] + weight\n            if neighbor not in dist or new_dist < dist[neighbor]:\n                dist[neighbor] = new_dist\n                queue.append(neighbor)\n    return dist",
+    "bug_type": "wrong_data_structure",
+    "tests": [
+      {
+        "function": "shortest_path_lengths",
+        "input": [
+          {
+            "A": [
+              [
+                "B",
+                1
+              ],
+              [
+                "C",
+                4
+              ]
+            ],
+            "B": [
+              [
+                "C",
+                2
+              ],
+              [
+                "D",
+                5
+              ]
+            ],
+            "C": [
+              [
+                "D",
+                1
+              ]
+            ],
+            "D": []
+          },
+          "A"
+        ],
+        "output": {
+          "A": 0,
+          "B": 1,
+          "C": 3,
+          "D": 4
+        }
+      },
+      {
+        "function": "shortest_path_lengths",
+        "input": [
+          {
+            "A": [
+              [
+                "B",
+                3
+              ]
+            ],
+            "B": [
+              [
+                "C",
+                1
+              ]
+            ],
+            "C": []
+          },
+          "A"
+        ],
+        "output": {
+          "A": 0,
+          "B": 3,
+          "C": 4
+        }
+      }
+    ]
+  },
+  {
+    "name": "maximum_subarray",
+    "buggy_code": "def maximum_subarray(nums):\n    max_sum = nums[0]\n    current_sum = nums[0]\n    for num in nums[1:]:\n        current_sum = max(num, current_sum + num)\n        max_sum = max(max_sum, current_sum)\n    return max_sum",
+    "fixed_code": "def maximum_subarray(nums):\n    if not nums:\n        return 0\n    max_sum = nums[0]\n    current_sum = nums[0]\n    for num in nums[1:]:\n        current_sum = max(num, current_sum + num)\n        max_sum = max(max_sum, current_sum)\n    return max_sum",
+    "bug_type": "wrong_initialization",
+    "tests": [
+      {
+        "function": "maximum_subarray",
+        "input": [],
+        "output": 0
+      }
+    ]
+  },
+  {
+    "name": "kmp",
+    "buggy_code": "def kmp(pattern, text):\n    n = len(pattern)\n    lps = [0] * n\n    length = 0\n    i = 1\n    while i < n:\n        if pattern[i] == pattern[length]:\n            length += 1\n            lps[i] = length\n            i += 1\n        else:\n            if length != 0:\n                length = lps[length - 1]\n            else:\n                lps[i] = 0\n                i += 1\n    return lps",
+    "fixed_code": "def kmp(pattern, text):\n    n = len(pattern)\n    lps = [0] * n\n    length = 0\n    i = 1\n    while i < n:\n        if pattern[i] == pattern[length]:\n            length += 1\n            lps[i] = length\n            i += 1\n        else:\n            if length != 0:\n                length = lps[length - 1]\n            else:\n                lps[i] = 0\n                i += 1\n    return lps",
+    "bug_type": "none",
+    "tests": []
+  }
+]

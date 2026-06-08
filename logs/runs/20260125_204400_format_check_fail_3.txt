@@ -1,0 +1,3 @@
+Patch format check failed:
+
+error: corrupt patch at line 11

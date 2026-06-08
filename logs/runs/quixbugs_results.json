@@ -1,0 +1,97 @@
+{
+  "desc": "Oracle (fixed code)",
+  "passed": 8,
+  "total": 8,
+  "pass_rate": 1.0,
+  "ci_low": 0.6755843804891231,
+  "ci_high": 1.0,
+  "by_type": {
+    "wrong_operator": {
+      "total": 1,
+      "passed": 1
+    },
+    "off_by_one": {
+      "total": 2,
+      "passed": 2
+    },
+    "wrong_variable": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_argument_order": {
+      "total": 1,
+      "passed": 1
+    },
+    "missing_check": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_initialization": {
+      "total": 1,
+      "passed": 1
+    },
+    "wrong_expression": {
+      "total": 1,
+      "passed": 1
+    }
+  },
+  "results": [
+    {
+      "name": "bitcount",
+      "bug_type": "wrong_operator",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    },
+    {
+      "name": "find_first_in_sorted",
+      "bug_type": "off_by_one",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    },
+    {
+      "name": "flatten",
+      "bug_type": "wrong_variable",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.9996891021728516
+    },
+    {
+      "name": "gcd",
+      "bug_type": "wrong_argument_order",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    },
+    {
+      "name": "is_valid_parenthesization",
+      "bug_type": "missing_check",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    },
+    {
+      "name": "max_sublist_sum",
+      "bug_type": "wrong_initialization",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    },
+    {
+      "name": "sqrt",
+      "bug_type": "wrong_expression",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    },
+    {
+      "name": "quicksort",
+      "bug_type": "off_by_one",
+      "passed": true,
+      "error": "",
+      "time_ms": 0.0
+    }
+  ],
+  "timestamp": "2026-04-13T23:11:51.411989"
+}

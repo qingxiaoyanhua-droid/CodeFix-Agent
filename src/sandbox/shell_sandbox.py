@@ -2,16 +2,13 @@
 """
 ShellSandbox: Isolated code execution sandbox.
 
-Security model:
+Security model (inspired by Claude Code's 7-layer safety):
   Layer 1: Whitelist of allowed languages
-  Layer 2: AST-based danger detection (Python) + deny-list (shell)
+  Layer 2: Deny-list of dangerous patterns (shell + Python builtins)
   Layer 3: Subprocess isolation (separate process, fresh env)
   Layer 4: Temp directory with cleanup
   Layer 5: Resource limits (timeout, stdout/stderr size, memory)
-  Layer 6: Exit code verification + compile output path guard
-
-Python detection uses ast.parse for reliable structural analysis.
-Shell detection uses regex deny-list for command-string patterns.
+  Layer 6: Exit code verification
 
 Usage:
     from shell_sandbox import ShellSandbox
@@ -29,7 +26,6 @@ import shutil
 import tempfile
 import subprocess
 import hashlib
-import ast
 from dataclasses import dataclass, field
 from typing import List, Optional, Literal
 from pathlib import Path
@@ -53,163 +49,30 @@ _SHELL_DANGEROUS_PATTERNS = [
     r"nohup\s+.*\s+&\s*$",    # Background daemon (suspicious)
 ]
 
-# Test-File Guard Rail: 拒绝修改测试相关代码的模式
-_TEST_FILE_PATTERNS = [
-    (r"def\s+test_\w+", "Test function definition"),
-    (r"class\s+Test\w+", "Test class definition"),
-    (r"unittest\.TestCase", "unittest TestCase"),
-    (r"pytest\.fixture", "pytest fixture"),
-    (r"@pytest\.mark\.param", "pytest parametrize"),
-    (r"def\s+suite\(", "Test suite function"),
+_PYTHON_DANGEROUS_BUILTINS = [
+    r"\bexec\s*\(",            # Arbitrary code execution
+    r"\beval\s*\(",            # Arbitrary code execution
+    r"__import__\s*\(",        # Dynamic import
+    r"open\s*\([^)]*[\"']/etc",  # Read /etc files
+    r"open\s*\([^)]*[\"'][wr]",  # File write
+    r"os\.system\s*\(",        # Shell command
+    r"os\.popen\s*\(",         # Shell command
+    r"subprocess\.Popen",      # Subprocess
+    r"subprocess\.run.*shell\s*=\s*True",  # Shell=True
+    r"pty\.spawn",             # Pseudo-terminal
+    r"multiprocessing\.Process",  # Process spawn
+    r"threading\.Thread",      # Thread spawn (allowed if short timeout)
+    r"sys\.exit\s*\(",        # sys.exit
+    r"os\._exit\s*\(",         # os._exit
+    r"getattr\s*\(.*__",       # Get private attribute
+    r"setattr\s*\(.*__",       # Set private attribute
+    r"import\s+os\s*$",        # import os (only block if combined with system)
+    r"import\s+subprocess",    # import subprocess
+    r"import\s+pty",           # import pty
+    r"__builtins__",           # Access builtins
+    r"globals\s*\(\)",          # Access globals
+    r"locals\s*\(\)",          # Access locals
 ]
-
-_DANGEROUS_BUILTINS_AST = {
-    # Module-level dangerous imports
-    "os": {"system", "popen", "execl", "execlp", "execv", "execve", "execvp", "execvpe",
-           "spawnl", "spawnv", "spawnve", "spawnvp", "spawnvpe", "fork", "forkpty",
-           "kill", "killpg", "setuid", "setgid", "setregid", "setreuid", "setresuid",
-           "chdir", "chroot", "remove", "unlink", "rmdir", "rename", "replace",
-           "mkdir", "makedirs", "rmtree", "chmod", "chown", "lchown", "link", "symlink",
-           "listdir", "walk", "access", "exists", "isdir", "isfile", "getcwd", "getenv"},
-    "subprocess": {"Popen", "call", "run", "check_call", "check_output", "DEVNULL",
-                   "PIPE", "STDOUT", "CalledProcessError"},
-    "ctypes": {"CDLL", "WinDLL", "OleDLL", "PyDLL", "c_void_p", "cast", "pointer",
-               "Structure", "Union", "Array"},
-    "pty": {"spawn", "openpty", "forkpty"},
-    "threading": {"Thread", "Lock", "RLock", "Semaphore", "Event", "Condition", "Timer"},
-    "multiprocessing": {"Process", "Pool", "Queue", "Pipe", "Value", "Array", "Manager",
-                         "Lock", "Semaphore", "Event", "Condition"},
-    "sys": {"setrecursionlimit", "settrace", "setprofile", "excepthook",
-            "path", "modules", "argv"},
-    "socket": {"socket", "create_server", "create_connection"},
-    "urllib": {"urlopen", "urlretrieve", "request"},
-    "requests": {"get", "post", "put", "delete", "patch", "head", "options"},
-    "http": {"client"},
-    "platform": {"os", "linux_distribution", "mac_ver", "win32_ver"},
-    "resource": {"setrlimit", "getrlimit"},
-    "signal": {"signal", "alarm"},
-    "builtins": {"open", "compile", "eval", "exec", "__import__", "reload"},
-}
-
-_DANGEROUS_BUILTINS_LITERAL = {"__import__", "eval", "exec", "compile", "open",
-                                "reload", "breakpoint", "exit", "quit"}
-
-
-def _ast_check_python(code: str) -> Optional[str]:
-    """
-    Use AST parsing to detect dangerous Python patterns.
-    Returns reason string if blocked, None if safe.
-    Much more reliable than regex for detecting dangerous calls.
-    """
-    try:
-        tree = ast.parse(code)
-    except SyntaxError:
-        return None
-
-    dangerous_modules: set = set()
-    visited_calls: set = set()
-
-    for node in ast.walk(tree):
-        # 1. Dangerous builtin calls: eval(), exec(), __import__(), open()
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name):
-                name = func.id
-                if name in _DANGEROUS_BUILTINS_LITERAL:
-                    if name == "open" and len(node.args) >= 2:
-                        mode = node.args[1]
-                        if isinstance(mode, ast.Constant) and "w" in str(mode.value):
-                            return f"Dangerous: open() with write mode"
-                    elif name == "eval":
-                        return f"Dangerous: eval() allows arbitrary code execution"
-                    elif name == "exec":
-                        return f"Dangerous: exec() allows arbitrary code execution"
-                    elif name == "__import__":
-                        submod = None
-                        if node.args and isinstance(node.args[0], ast.Constant):
-                            submod = node.args[0].value
-                        return f"Dangerous: __import__() dynamic import"
-                    elif name == "compile":
-                        return f"Dangerous: compile() can create arbitrary code objects"
-
-        # 2. Attribute access on dangerous modules: os.system, subprocess.Popen, etc.
-        if isinstance(node, ast.Attribute):
-            if isinstance(node.value, ast.Name):
-                mod = node.value.id
-                attr = node.attr
-                if mod in _DANGEROUS_BUILTINS_AST:
-                    dangerous_attrs = _DANGEROUS_BUILTINS_AST[mod]
-                    if attr in dangerous_attrs:
-                        if mod == "os" and attr in {"system", "popen"}:
-                            return f"Dangerous: os.{attr}() executes shell commands"
-                        if mod == "subprocess" and attr in {"Popen", "call", "run", "check_call", "check_output"}:
-                            return f"Dangerous: subprocess.{attr}() can execute arbitrary commands"
-                        if mod == "ctypes":
-                            return f"Dangerous: ctypes.{attr} allows raw memory access"
-                        if mod == "threading" and attr == "Thread":
-                            return f"Dangerous: threading.Thread() spawns uncontrolled threads"
-                        if mod == "multiprocessing" and attr == "Process":
-                            return f"Dangerous: multiprocessing.Process() spawns uncontrolled processes"
-                        if mod == "pty" and attr == "spawn":
-                            return f"Dangerous: pty.spawn() creates uncontrolled pseudo-terminals"
-                        if mod in {"urllib", "requests", "http"}:
-                            return f"Dangerous: {mod}.{attr}() makes network calls"
-                        return f"Dangerous: {mod}.{attr}() is not allowed"
-
-        # 3. Import statements that pull in dangerous modules
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            if isinstance(node, ast.ImportFrom):
-                mod = node.module or ""
-                if mod.split(".")[0] in _DANGEROUS_BUILTINS_AST:
-                    alias = node.names[0].name if node.names else mod
-                    return f"Dangerous: importing '{mod}' allows system-level operations"
-            else:
-                for alias in node.names:
-                    mod = alias.name.split(".")[0]
-                    if mod in _DANGEROUS_BUILTINS_AST:
-                        return f"Dangerous: importing '{mod}' allows system-level operations"
-
-        # 4. subprocess.run/call with shell=True (detected via Call node)
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                if func.value.id == "subprocess":
-                    for keyword in node.keywords:
-                        if keyword.arg == "shell" and isinstance(keyword.value, ast.Constant) \
-                                and keyword.value.value is True:
-                            return f"Dangerous: subprocess.{func.attr}(shell=True) executes arbitrary shell commands"
-
-        # 5. getattr/setattr with dunder attrs
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name) and func.id in ("getattr", "setattr", "delattr"):
-                if len(node.args) >= 2:
-                    attr_arg = node.args[1]
-                    if isinstance(attr_arg, ast.Constant) and isinstance(attr_arg.value, str):
-                        if attr_arg.value.startswith("__") and attr_arg.value.endswith("__"):
-                            return f"Dangerous: {func.id}() accessing dunder attribute '{attr_arg.value}'"
-
-        # 6. ctypes in assignment: ctypes.CDLL(...) etc.
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    pass  # We detect via ast.Attribute above
-
-    return None
-
-
-def _regex_check_python(code: str) -> Optional[str]:
-    """Fallback regex check for patterns AST might miss (string obfuscation, etc.)."""
-    # Only run a quick pre-check for obviously obfuscated patterns
-    # that AST parsing won't catch
-    obfuscation_patterns = [
-        (r'getattr\s*\(\s*__builtins__\s*,', "Obfuscated access to __builtins__ via getattr"),
-        (r'eval\s*\(\s*["\']\w+["\']\s*\)', "Obfuscated eval call"),
-    ]
-    for pat, reason in obfuscation_patterns:
-        if re.search(pat, code):
-            return reason
-    return None
 
 _LANG_COMMANDS: dict[str, list[str]] = {
     "python":  ["python3", "-u", "{filepath}"],
@@ -294,25 +157,7 @@ class ShellSandbox:
         self._binary_cache: dict[str, str] = {}
 
         self._shell_re = [re.compile(p, re.IGNORECASE) for p in _SHELL_DANGEROUS_PATTERNS]
-
-    # ---- Test-File Guard Rail (MAC 论文最佳实践) ----
-
-    def check_test_file_guard(self, code: str) -> tuple[bool, str]:
-        """
-        检查代码是否包含测试相关结构（预防性安全层）。
-
-        参考 MAC 论文 SWE-Bench 高分 artifact 的设计：
-        - 显式拒绝修改测试文件，防止 Agent 修改测试来"通过"
-        - 这是预防性的，在沙箱层拦截
-
-        Returns:
-            (is_safe, reason) — is_safe=True 表示代码安全，False 表示检测到测试文件修改
-        """
-        for pattern, description in _TEST_FILE_PATTERNS:
-            if re.search(pattern, code):
-                return False, f"Test-File Guard Rail triggered: {description} found. Refusing to execute test file modifications."
-
-        return True, ""
+        self._py_re = [re.compile(p, re.IGNORECASE) for p in _PYTHON_DANGEROUS_BUILTINS]
 
     # ---- Public API ----
 
@@ -344,7 +189,7 @@ class ShellSandbox:
             )
 
         # Layer 2: Danger pattern check
-        blocked_reason = self._check_danger(code, lang)
+        blocked_reason = self._check_danger(code)
         if blocked_reason:
             return SandboxResult(
                 success=False,
@@ -354,19 +199,6 @@ class ShellSandbox:
                 duration_ms=(time.perf_counter() - t0) * 1000,
                 language=lang,
                 error="DangerousPattern",
-            )
-
-        # Layer 0b: Test-File Guard Rail (MAC 论文最佳实践)
-        is_safe, guard_reason = self.check_test_file_guard(code)
-        if not is_safe:
-            return SandboxResult(
-                success=False,
-                stdout="",
-                stderr=guard_reason,
-                exit_code=-1,
-                duration_ms=(time.perf_counter() - t0) * 1000,
-                language=lang,
-                error="TestFileModificationBlocked",
             )
 
         # Layer 3-6: Execute in subprocess
@@ -416,12 +248,7 @@ class ShellSandbox:
     def _run_compiled(self, code: str, lang: str, t0: float) -> SandboxResult:
         ext = _LANG_EXTENSIONS.get(lang, "txt")
         source_path = os.path.join(self.work_dir, f"main.{ext}")
-
-        # Force binary output inside work_dir — prevents writing to /etc, /tmp, etc.
-        safe_name = f"main_{lang}_binary"
-        if lang == "java":
-            safe_name = self._extract_java_class_name(code) + ".class"
-        binary_path = os.path.normpath(os.path.join(self.work_dir, safe_name))
+        binary_path = os.path.join(self.work_dir, f"main_{lang}_binary")
 
         try:
             with open(source_path, "w", encoding="utf-8", errors="replace") as f:
@@ -431,16 +258,6 @@ class ShellSandbox:
                 success=False, stdout="", stderr=f"Failed to write code: {e}",
                 exit_code=-1, duration_ms=(time.perf_counter() - t0) * 1000,
                 language=lang, error="WriteError",
-            )
-
-        # Verify binary_path is safely inside work_dir (defense-in-depth)
-        work_dir_abs = os.path.normpath(os.path.abspath(self.work_dir))
-        binary_abs = os.path.normpath(os.path.abspath(binary_path))
-        if not binary_abs.startswith(work_dir_abs + os.sep) and binary_abs != work_dir_abs:
-            return SandboxResult(
-                success=False, stdout="", stderr="Binary output path escapes sandbox directory",
-                exit_code=-1, duration_ms=(time.perf_counter() - t0) * 1000,
-                language=lang, error="DangerousPattern",
             )
 
         # Compile step
@@ -613,22 +430,18 @@ class ShellSandbox:
 
     # ---- Security Checks ----
 
-    def _check_danger(self, code: str, lang: str) -> Optional[str]:
+    def _check_danger(self, code: str) -> Optional[str]:
         """Check code for dangerous patterns. Returns reason if blocked, None if safe."""
-        if lang in ("python", "python3"):
-            # Layer 2a: AST-based detection (primary, reliable)
-            ast_reason = _ast_check_python(code)
-            if ast_reason:
-                return ast_reason
-            # Layer 2b: Regex fallback for obfuscation patterns
-            regex_reason = _regex_check_python(code)
-            if regex_reason:
-                return regex_reason
-        else:
-            # Shell patterns for shell-like languages
-            for pattern_re in self._shell_re:
-                if pattern_re.search(code):
-                    return f"Shell dangerous pattern matched: {pattern_re.pattern}"
+        # Shell patterns
+        for pattern_re in self._shell_re:
+            if pattern_re.search(code):
+                return f"Shell dangerous pattern matched: {pattern_re.pattern}"
+
+        # Python builtins
+        for pattern_re in self._py_re:
+            if pattern_re.search(code):
+                return f"Python dangerous builtin: {pattern_re.pattern}"
+
         return None
 
     # ---- Environment ----

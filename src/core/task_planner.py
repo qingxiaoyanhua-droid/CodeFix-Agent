@@ -48,7 +48,6 @@ class IntentType(Enum):
     RUNTIME_OPT   = "runtime_opt"   # 运行时优化
     SEMANTIC_FIX  = "semantic_fix"  # 语义/逻辑错误
     REPO_LEVEL    = "repo_level"    # 仓库级：需大模型协调 grep+AST 定位
-    CODE_FIX      = "code_fix"      # 代码修复（使用小大模型协同模式）
 
 
 class Complexity(Enum):
@@ -385,10 +384,6 @@ class PlanGenerator:
         IntentType.BUG_FIX: [
             "ast_locate", "rag_retrieve", "cot_generate", "compile", "test",
         ],
-        IntentType.CODE_FIX: [
-            # CodeFixer 模式：直接调用原子操作
-            "codefixer",
-        ],
         IntentType.REPO_LEVEL: [
             # 仓库级：大模型协调 grep + AST 定位，再小模型修复
             "file_search", "ast_locate", "cot_generate", "harness_execute",
@@ -517,21 +512,6 @@ class PlanGenerator:
                 description="三阶段验证：compile → exec → test cases",
             ))
             step_id += 1
-
-        # Step 4'（CODE_FIX 专用）：小大模型协同修复
-        elif intent.intent == IntentType.CODE_FIX:
-            steps.append(PlanStep(
-                step_id=step_id,
-                name="CodeFixer_小大模型协同",
-                tool="codefixer",
-                input_requirements={
-                    "buggy_code": buggy_code,
-                    "bug_description": intent.bug_type,
-                    "test_cases": "optional",
-                },
-                expected_output="FixResult: success + final_code + trajectory",
-                description="小模型生成 → 大模型给 hint → 小模型重试 → 大模型亲自下场",
-            ))
 
         # Step 4'（REPO_LEVEL 专用）：大模型协调 grep+AST 定位
         elif intent.intent == IntentType.REPO_LEVEL:

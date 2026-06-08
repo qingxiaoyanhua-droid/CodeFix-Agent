@@ -594,9 +594,7 @@ repobugfix_complete_project/
 │   └── server_eval.py                服务器评测
 │
 ├── API 服务
-│   ├── api_server.py                 FastAPI 接口（auth, rate-limit, audit）
-│   ├── api/llm_router.py            ⭐ LLM Router（断路器 + 指数退避 + 模型降级链）
-│   └── api/token_tracker.py         ⭐ Token 追踪器（per-key 统计 + 成本 + 配额告警）
+│   └── api_server.py                 FastAPI 接口
 │
 ├── CI/CD（本次新增！）
 │   └── .github/workflows/ci.yml      GitHub Actions 自动化流水线
@@ -673,13 +671,6 @@ repobugfix_complete_project/
 | PRM 替代困惑度 | 六维度多粒度奖励，步骤级 credit assignment |
 | RRF 替代线性加权 | 基于排名融合，量纲无关，工业标准 |
 | 六维 reward 权重 | 基于推理启发式设定，未做完整消融（局限） |
-| 断路器状态数 | **三态**（CLOSED→OPEN→HALF_OPEN）。两态不够，HALF_OPEN 防假痊愈 |
-| 降级链模型顺序 | 能力降序+成本升序，期望 latency 和 cost 同时最优 |
-| 指数退避加 jitter | **必须有**。不加则所有请求退避时间相同，恢复时惊群效应，服务端再次 429 |
-| 重试判别 | **区分错误类型**。429/5xx/timeout 可重试；400/401 不可重试，直接抛异常 |
-| 配额重置周期 | **每日重置**，与服务商配额策略一致 |
-| 告警写盘策略 | **只在级别上升时写盘**，避免每请求一次 IO |
-| 断路器 vs 429 | 断路器是**主动**（客户端预判），429 是**被动**（服务端通知），两者互补 |
 
 ---
 

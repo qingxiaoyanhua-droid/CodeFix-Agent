@@ -1,0 +1,140 @@
+.FFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+____________________________ test_iter_slices[T-1] _____________________________
+
+value = 'T', length = 1
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+            assert len(list(iter_slices(value, length))) == 1
+        else:
+>           assert len(list(iter_slices(value, 1))) == length
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x10788a0a0>)
+E            +      where <generator object iter_slices at 0x10788a0a0> = iter_slices('T', 1)
+
+tests/test_utils.py:661: AssertionError
+___________________________ test_iter_slices[Test-4] ___________________________
+
+value = 'Test', length = 4
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+            assert len(list(iter_slices(value, length))) == 1
+        else:
+>           assert len(list(iter_slices(value, 1))) == length
+E           AssertionError: assert 0 == 4
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x1078c34c0>)
+E            +      where <generator object iter_slices at 0x1078c34c0> = iter_slices('Test', 1)
+
+tests/test_utils.py:661: AssertionError
+___________________________ test_iter_slices[Cont-0] ___________________________
+
+value = 'Cont', length = 0
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+>           assert len(list(iter_slices(value, length))) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x1078c3140>)
+E            +      where <generator object iter_slices at 0x1078c3140> = iter_slices('Cont', 0)
+
+tests/test_utils.py:659: AssertionError
+__________________________ test_iter_slices[Other--5] __________________________
+
+value = 'Other', length = -5
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+>           assert len(list(iter_slices(value, length))) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x1078c2f80>)
+E            +      where <generator object iter_slices at 0x1078c2f80> = iter_slices('Other', -5)
+
+tests/test_utils.py:659: AssertionError
+________________________ test_iter_slices[Content-None] ________________________
+
+value = 'Content', length = None
+
+    @pytest.mark.parametrize(
+        "value, length",
+        (
+            ("", 0),
+            ("T", 1),
+            ("Test", 4),
+            ("Cont", 0),
+            ("Other", -5),
+            ("Content", None),
+        ),
+    )
+    def test_iter_slices(value, length):
+        if length is None or (length <= 0 and len(value) > 0):
+            # Reads all content at once
+>           assert len(list(iter_slices(value, length))) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = len([])
+E            +    where [] = list(<generator object iter_slices at 0x107908040>)
+E            +      where <generator object iter_slices at 0x107908040> = iter_slices('Content', None)
+
+tests/test_utils.py:659: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+5 failed, 1 passed, 212 deselected in 0.15s
+
+

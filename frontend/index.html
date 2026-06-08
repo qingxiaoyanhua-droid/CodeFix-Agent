@@ -585,121 +585,6 @@
       30% { transform: translateY(-4px); }
     }
 
-    /* ======= Streaming SSE Progress ======= */
-    .stream-progress {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      width: 100%;
-      max-width: 700px;
-      animation: fadeIn 0.2s ease;
-    }
-
-    .stream-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      font-size: 13px;
-    }
-
-    .stream-spinner {
-      font-size: 16px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .stream-status {
-      color: var(--text-secondary);
-      font-size: 13px;
-    }
-
-    .stream-events {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-
-    .stream-event {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 6px 10px;
-      background: var(--bg-primary);
-      border-radius: 6px;
-      font-size: 12px;
-      line-height: 1.5;
-      animation: fadeIn 0.15s ease;
-    }
-
-    .ev-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 600;
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .ev-phase { background: rgba(88,166,255,0.15); color: var(--accent); }
-    .ev-cot    { background: rgba(188,140,255,0.15); color: var(--purple); }
-    .ev-code  { background: rgba(63,185,80,0.15); color: var(--success); }
-    .ev-pass   { background: rgba(63,185,80,0.15); color: var(--success); }
-    .ev-fail   { background: rgba(248,81,73,0.15); color: var(--error); }
-    .ev-feedback { background: rgba(210,153,34,0.15); color: var(--warning); }
-    .ev-mem    { background: rgba(88,166,255,0.1); color: var(--accent); }
-    .ev-error  { background: rgba(248,81,73,0.15); color: var(--error); }
-
-    .ev-cot-text {
-      font-family: monospace;
-      font-size: 11px;
-      color: var(--text-secondary);
-      white-space: pre-wrap;
-      word-break: break-all;
-      max-height: 60px;
-      overflow: hidden;
-    }
-
-    .ev-meta {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .ev-error {
-      color: var(--error);
-      font-size: 11px;
-    }
-
-    .ev-feedback-box {
-      background: var(--bg-tertiary);
-      border-radius: 6px;
-      padding: 8px 10px;
-      font-size: 12px;
-    }
-
-    .ev-fb-status { color: var(--text-secondary); }
-    .ev-fb-hint   { color: var(--text-primary); margin-top: 4px; }
-
-    .ev-mem-items { margin-top: 4px; padding-left: 8px; }
-    .ev-mem-item  { color: var(--text-muted); font-size: 11px; }
-
-    .ev-final-code {
-      margin-top: 8px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px;
-      font-size: 12px;
-      overflow-x: auto;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-
     /* Toast */
     .toast {
       position: fixed;
@@ -989,7 +874,7 @@
     scrollToBottom();
   }
 
-  // ============ Send Message (Streaming SSE) ============
+  // ============ Send Message ============
   async function sendMessage() {
     if (isLoading) return;
     const input = document.getElementById('userInput');
@@ -1010,183 +895,33 @@
     input.value = '';
     setLoading(true);
 
-    // Live progress message that we'll update as events arrive
-    const progressDiv = appendRaw(`<div class="stream-progress" id="streamProgress">
-      <div class="stream-header">
-        <span class="stream-spinner">⟳</span>
-        <span class="stream-status" id="streamStatus">正在启动 Agent...</span>
-      </div>
-      <div class="stream-events" id="streamEvents"></div>
-    </div>`);
-    scrollToBottom();
-
     try {
-      // Use streaming SSE endpoint
-      const resp = await fetch(`${API_BASE}/fix/stream`, {
-        method: 'POST',
-        headers: apiHeaders(),
-        body: JSON.stringify(body),
+      const data = await apiPost('/fix', body);
+
+      // Update session info
+      currentSessionId = data.session_id;
+      localStorage.setItem('cfx_current_session', currentSessionId);
+
+      // Show agent response
+      appendMessage('agent', buildAgentSummary(data));
+      showFixResult(data);
+
+      // Update memory panel
+      updateContextPanel({
+        session_id: currentSessionId,
+        iterations: data.total_iterations,
+        success: data.success,
+        used_reflections: data.used_reflections,
+        used_skills: data.used_skills,
       });
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
-      }
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-
-      // Accumulate SSE lines (each "data: ...\n" may span multiple chunks)
-      let buffer = '';
-      const streamEvents = document.getElementById('streamEvents');
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';  // incomplete last line stays in buffer
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6);  // strip "data: "
-          if (!jsonStr.trim()) continue;
-
-          try {
-            const event = JSON.parse(jsonStr);
-            // Route to appropriate UI updater
-            updateStreamUI(event, streamEvents);
-          } catch (e) {
-            console.warn('[SSE parse error]', e, jsonStr);
-          }
-        }
-      }
-    } catch (e) {
-      // Fallback to non-streaming endpoint
-      try {
-        const data = await apiPost('/fix', body);
-        document.getElementById('streamProgress')?.remove();
-        appendMessage('agent', buildAgentSummary(data));
-        showFixResult(data);
-        updateContextPanel({
-          session_id: currentSessionId,
-          iterations: data.total_iterations,
-          success: data.success,
-        });
-      } catch (e2) {
-        document.getElementById('streamProgress')?.remove();
-        appendMessage('agent', `请求失败: ${e2.message || e.message}`);
-      }
-    } finally {
-      // Remove spinner and finalize
-      const spinner = document.querySelector('.stream-spinner');
-      const status = document.getElementById('streamStatus');
-      if (spinner) spinner.textContent = '✓';
-      if (status) status.textContent = '完成';
-      setLoading(false);
+      // Update profile
       await loadSessions();
-    }
-  }
 
-  // Update streaming UI based on event type
-  function updateStreamUI(event, container) {
-    const status = document.getElementById('streamStatus');
-    const appendEvent = (html) => {
-      const el = document.createElement('div');
-      el.className = 'stream-event';
-      el.innerHTML = html;
-      container.appendChild(el);
-      scrollToBottom();
-    };
-
-    switch (event.type || event.phase) {
-      case 'phase':
-      case 'iteration_start':
-        if (status) status.textContent = `🔄 迭代 ${event.iteration || 1} 进行中...`;
-        appendEvent(`<span class="ev-badge ev-phase">🔄 迭代 ${event.iteration} 开始</span>`);
-        break;
-
-      case 'cot_generated':
-        if (status) status.textContent = `⏳ 正在分析 CoT 推理...`;
-        // Show first 300 chars of CoT reasoning
-        const cot = (event.cot_text || '').slice(0, 300);
-        appendEvent(`<span class="ev-badge ev-cot">🤖 小模型推理 (${event.iteration})</span><pre class="ev-cot-text">${escapeHtml(cot)}${cot.length >= 300 ? '...' : ''}</pre>`);
-        break;
-
-      case 'code_extracted':
-        if (status) status.textContent = `⏳ 代码提取完成，准备验证...`;
-        appendEvent(`<span class="ev-badge ev-code">📝 代码提取 ${event.has_code ? '✅' : '❌'}</span><span class="ev-meta">${event.step_count} 步推理</span>`);
-        break;
-
-      case 'compile_result':
-        const icon = event.passed ? '✅' : event.success ? '⚠️' : '❌';
-        const label = event.passed ? 'PASS' : 'FAIL';
-        const tests = event.passed_tests != null
-          ? ` (${event.passed_tests}/${event.total_tests})`
-          : '';
-        if (status) status.textContent = `${icon} 编译/测试 ${label}`;
-        appendEvent(
-          `<span class="ev-badge ${event.passed ? 'ev-pass' : 'ev-fail'}">${icon} ${label}${tests}</span>` +
-          (event.error_message ? `<span class="ev-error">${escapeHtml(event.error_message.slice(0, 100))}</span>` : '')
-        );
-        break;
-
-      case 'large_model_feedback':
-        if (status) status.textContent = `💡 大模型反馈已生成`;
-        appendEvent(
-          `<span class="ev-badge ev-feedback">💡 大模型反馈</span>` +
-          `<div class="ev-feedback-box">` +
-          `<div class="ev-fb-status">状态: <b>${event.status || '?'}</b></div>` +
-          (event.hint ? `<div class="ev-fb-hint">💬 ${escapeHtml(event.hint)}</div>` : '') +
-          `</div>`
-        );
-        break;
-
-      case 'memory_hit':
-        const memIcon = event.count > 0 ? '🧠' : '○';
-        if (status && event.count > 0) status.textContent = `🧠 记忆命中 ${event.count}`;
-        appendEvent(
-          `<span class="ev-badge ev-mem">${memIcon} ${event.pool} 命中 ${event.count} 条</span>` +
-          (event.items && event.items.length > 0
-            ? `<div class="ev-mem-items">${event.items.slice(0, 2).map(it => `<div class="ev-mem-item">• ${escapeHtml(JSON.stringify(it).slice(0, 60))}</div>`).join('')}</div>`
-            : '')
-        );
-        break;
-
-      case 'done':
-        if (status) status.textContent = event.success ? '✅ 修复成功' : '❌ 修复完成';
-        appendEvent(
-          `<span class="ev-badge ${event.success ? 'ev-pass' : 'ev-fail'}">${event.success ? '✅ 修复成功' : '⚠️ 未通过'}</span>` +
-          `<span class="ev-meta">${event.total_iterations} 迭代 · ${event.total_time_ms ? (event.total_time_ms / 1000).toFixed(1) + 's' : ''}</span>`
-        );
-        // Show final code
-        if (event.fixed_code) {
-          appendEvent(
-            `<div class="fix-result-header">修复代码</div>` +
-            `<pre class="ev-final-code"><code>${escapeHtml(event.fixed_code)}</code></pre>`
-          );
-        }
-        // Update context panel
-        updateContextPanel({
-          session_id: event.session_id,
-          iterations: event.total_iterations,
-          success: event.success,
-          used_reflections: event.used_reflections,
-          used_skills: event.used_skills,
-        });
-        currentSessionId = event.session_id || currentSessionId;
-        localStorage.setItem('cfx_current_session', currentSessionId);
-        break;
-
-      case 'error':
-        if (status) status.textContent = `❌ 出错: ${event.message}`;
-        appendEvent(`<span class="ev-badge ev-error">❌ 错误: ${escapeHtml(event.message)}</span>`);
-        break;
-
-      case 'heartbeat':
-        // Silent keep-alive, no UI update
-        break;
+    } catch (e) {
+      appendMessage('agent', `请求失败: ${e.message}\n\n请确认 API 服务正在运行 (python api_server.py)`);
+    } finally {
+      setLoading(false);
     }
   }
 

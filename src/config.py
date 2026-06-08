@@ -116,31 +116,6 @@ class RAGConfig:
     chunk_size: int = 512
 
 
-@dataclass
-class LLMConfig:
-    """LLM Router configuration."""
-    failure_threshold: int = 3
-    success_threshold: int = 2
-    circuit_open_timeout: float = 30.0
-    half_open_max_calls: int = 3
-    backoff_base_delay: float = 1.0
-    backoff_max_delay: float = 60.0
-    backoff_exponent: float = 2.0
-    backoff_jitter: float = 0.5
-    max_retries: int = 3
-    token_tracker_path: str = "./runs/token_tracker.json"
-    alert_thresholds: str = "0.80,0.95,1.00"
-
-
-@dataclass
-class CostConfig:
-    """Cost calculation configuration."""
-    token_tracker_persist_path: str = "./runs/token_tracker.json"
-    default_quota_per_day: int = 1000
-    alert_webhook_url: Optional[str] = None
-    alert_email: Optional[str] = None
-
-
 # ==================== Main Config ====================
 
 class Config:
@@ -151,45 +126,42 @@ class Config:
     """
 
     def __init__(self):
-        # Instantiate sub-configs with defaults
-        self.model = ModelConfig()
-        self.server = ServerConfig()
-        self.memory = MemoryConfig()
-        self.training = TrainingConfig()
-        self.agent = AgentConfig()
-        self.rag = RAGConfig()
-        self.llm = LLMConfig()
-        self.cost = CostConfig()
         self._loaded = False
         self._load()
 
+    # ---- Model ----
+    model: ModelConfig = field(default_factory=ModelConfig)
+    # ---- Server ----
+    server: ServerConfig = field(default_factory=ServerConfig)
+    # ---- Memory / Storage ----
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
+    # ---- Training ----
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    # ---- Agent ----
+    agent: AgentConfig = field(default_factory=AgentConfig)
+    # ---- RAG ----
+    rag: RAGConfig = field(default_factory=RAGConfig)
+
     def _load(self):
+        """Load from environment and .env file."""
         if self._loaded:
             return
         self._loaded = True
 
+        # Load .env file if exists
         env_path = Path(".env")
         if env_path.exists():
             self._load_dotenv(env_path)
 
         self._load_from_env()
+
+        # Ensure directories exist
         self._ensure_dirs()
-        logger.info("[Config] Configuration loaded successfully")
 
-    def _load(self):
-        if self._loaded:
-            return
-        self._loaded = True
-
-        env_path = Path(".env")
-        if env_path.exists():
-            self._load_dotenv(env_path)
-
-        self._load_from_env()
-        self._ensure_dirs()
         logger.info("[Config] Configuration loaded successfully")
 
     def _load_dotenv(self, path: Path):
+        """Parse and apply .env file."""
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
@@ -199,6 +171,8 @@ class Config:
                 os.environ.setdefault(key.strip(), value.strip())
 
     def _load_from_env(self):
+        """Apply environment variables to each sub-config."""
+
         # Model config
         self.model.policy_model = os.environ.get(
             "POLICY_MODEL", self.model.policy_model)
@@ -245,37 +219,12 @@ class Config:
         self.rag.knowledge_base_path = os.environ.get(
             "KB_PATH", self.rag.knowledge_base_path)
 
-        # LLM Router config
-        self.llm.failure_threshold = int(os.environ.get(
-            "LLM_CB_FAILURE_THRESHOLD", str(self.llm.failure_threshold)))
-        self.llm.success_threshold = int(os.environ.get(
-            "LLM_CB_SUCCESS_THRESHOLD", str(self.llm.success_threshold)))
-        self.llm.circuit_open_timeout = float(os.environ.get(
-            "LLM_CB_OPEN_TIMEOUT", str(self.llm.circuit_open_timeout)))
-        self.llm.max_retries = int(os.environ.get(
-            "LLM_MAX_RETRIES", str(self.llm.max_retries)))
-        self.llm.backoff_base_delay = float(os.environ.get(
-            "LLM_BACKOFF_BASE", str(self.llm.backoff_base_delay)))
-        self.llm.backoff_max_delay = float(os.environ.get(
-            "LLM_BACKOFF_MAX", str(self.llm.backoff_max_delay)))
-        self.llm.token_tracker_path = os.environ.get(
-            "TOKEN_TRACKER_PATH", self.llm.token_tracker_path)
-        self.llm.alert_thresholds = os.environ.get(
-            "QUOTA_ALERT_THRESHOLDS", self.llm.alert_thresholds)
-
-        # Cost config
-        self.cost.token_tracker_persist_path = os.environ.get(
-            "TOKEN_TRACKER_PATH", self.cost.token_tracker_persist_path)
-        self.cost.default_quota_per_day = int(os.environ.get(
-            "DEFAULT_QUOTA_PER_DAY", str(self.cost.default_quota_per_day)))
-        self.cost.alert_webhook_url = os.environ.get("ALERT_WEBHOOK_URL")
-        self.cost.alert_email = os.environ.get("ALERT_EMAIL")
-
         # Agent config
         self.agent.max_iterations = int(os.environ.get(
             "MAX_ITERATIONS", str(self.agent.max_iterations)))
 
     def _ensure_dirs(self):
+        """Create all required directories."""
         dirs = [
             self.memory.reflection_memory_path,
             self.memory.skills_dir,
@@ -289,6 +238,7 @@ class Config:
             p.parent.mkdir(parents=True, exist_ok=True)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dict (useful for API responses and debugging)."""
         return {
             "model": self.model.__dict__,
             "server": self.server.__dict__,
@@ -296,11 +246,10 @@ class Config:
             "training": self.training.__dict__,
             "agent": self.agent.__dict__,
             "rag": self.rag.__dict__,
-            "llm": self.llm.__dict__,
-            "cost": self.cost.__dict__,
         }
 
     def summary(self) -> str:
+        """Human-readable summary."""
         return (
             f"[Config] mode={self.server.mode} | "
             f"policy={self.model.policy_model} | "
@@ -312,6 +261,7 @@ class Config:
 # ==================== Singleton Instance ====================
 
 CFG = Config()
+CFG._load()
 
 
 # ==================== .env Example ====================

@@ -36,12 +36,6 @@ import logging
 import traceback
 import hashlib
 import uuid
-
-try:
-    import tiktoken
-    _ENCODER = tiktoken.get_encoding("cl100k_base")
-except ImportError:
-    _ENCODER = None  # 降级到 char/4 估算
 from datetime import datetime
 from io import StringIO
 from typing import List, Dict, Tuple, Optional, Any
@@ -2445,21 +2439,7 @@ class CoTReActAgent:
                  reflection_memory: ReflectionMemory = None,
                  skill_manager: SkillManager = None,
                  language: str = "python",
-                 session_store: SessionStore = None,
-                 event_callback: callable = None,
-                 reflection_model: str = "large",
-                 max_reflection_tokens: int = 2048):
-        """
-        Args:
-            event_callback: 可选回调函数，签名为
-                callback(event_type: str, data: dict, iteration: int)
-                用于流式推送（如 SSE）。事件类型：
-                  phase, cot_generated, code_extracted, compile_result,
-                  large_model_feedback, ruff_check, iteration_start, iteration_end,
-                  memory_hit, done, error
-            reflection_model: 反思使用的模型，"large"（大模型，默认）或 "small"
-            max_reflection_tokens: 反思 prompt 的最大 token 数估算，超过则截断
-        """
+                 session_store: SessionStore = None):
         self.small_model = small_model_fn
         self.large_model = large_model_fn
         self.rag_retriever = rag_retriever
@@ -2469,17 +2449,6 @@ class CoTReActAgent:
         self.reflection_memory = reflection_memory or ReflectionMemory()
         self.skill_manager = skill_manager or SkillManager()
         self._used_skills_this_fix: List[Skill] = []  # full Skill objects for injection
-        self.event_callback = event_callback  # 流式事件回调
-        self.reflection_model = reflection_model  # "large" or "small"
-        self.max_reflection_tokens = max_reflection_tokens
-
-    def _emit(self, event_type: str, data: dict, iteration: int = 0):
-        """触发事件回调（线程安全）"""
-        if self.event_callback:
-            try:
-                self.event_callback(event_type, data, iteration)
-            except Exception:
-                pass  # 回调错误不中断主流程
         
         # Session Persistence (Claude-style, append-only)
         self.session_store = session_store or SessionStore()
@@ -2568,12 +2537,6 @@ class CoTReActAgent:
         past_reflections = self.reflection_memory.retrieve(
             bug_description, buggy_code, top_k=2
         )
-        self._emit("memory_hit", {
-            "pool": "L2_reflection",
-            "count": len(past_reflections),
-            "items": [{"pattern": r.bug_pattern, "lesson": r.lesson_learned[:80]}
-                      for r in (past_reflections or [])],
-        })
         if past_reflections:
             logger.info(
                 f"[L2] Retrieved {len(past_reflections)} relevant reflections from memory"
@@ -2584,12 +2547,6 @@ class CoTReActAgent:
         past_skills = self.skill_manager.retrieve(
             bug_description, buggy_code, top_k=3
         )
-        self._emit("memory_hit", {
-            "pool": "L3_skill",
-            "count": len(past_skills),
-            "items": [{"name": s.name, "usefulness": s.usefulness}
-                      for s in (past_skills or [])],
-        })
         if past_skills:
             logger.info(f"[L3] Retrieved {len(past_skills)} relevant skills")
             self._used_skills_this_fix = past_skills  # full objects for injection
@@ -2603,11 +2560,6 @@ class CoTReActAgent:
         for iteration in range(1, self.max_iterations + 1):
             iter_start = time.time()
             logger.info(f"--- Iteration {iteration}/{self.max_iterations} ---")
-            self._emit("iteration_start", {
-                "iteration": iteration,
-                "max_iterations": self.max_iterations,
-                "elapsed_ms": (time.time() - start_time) * 1000,
-            })
 
             # ---- Recovery Manager: 超时检测 ----
             if self.recovery_manager.check_timeout():
@@ -2676,19 +2628,6 @@ class CoTReActAgent:
             record.cot_steps = steps
             record.fixed_code = fixed_code
 
-            # 流式事件：小模型推理完成
-            self._emit("cot_generated", {
-                "iteration": iteration,
-                "cot_text": raw_output[:2000],  # 截断避免过大
-                "model": "small",
-            })
-            self._emit("code_extracted", {
-                "iteration": iteration,
-                "fixed_code": fixed_code[:500] if fixed_code else "",
-                "step_count": len(steps),
-                "has_code": bool(fixed_code),
-            })
-
             if not fixed_code:
                 logger.warning("Small model produced no code, skipping to next iteration")
                 previous_error = "No valid code was generated in the response."
@@ -2713,18 +2652,6 @@ class CoTReActAgent:
             else:
                 exec_result = self.executor.execute(fixed_code, test_cases)
                 record.execution_result = exec_result
-
-                # 流式事件：编译+测试结果
-                self._emit("compile_result", {
-                    "iteration": iteration,
-                    "success": exec_result.success,
-                    "error_type": exec_result.error_type or "",
-                    "error_message": (exec_result.error_message or "")[:500],
-                    "passed_tests": exec_result.passed_tests,
-                    "total_tests": exec_result.total_tests,
-                    "passed": exec_result.passed_tests == exec_result.total_tests
-                        if exec_result.total_tests > 0 else exec_result.success,
-                })
 
             # ---- Session Persistence: log tool result ----
             self.session_store.append_tool_result(
@@ -2842,15 +2769,6 @@ class CoTReActAgent:
                 record.used_large_model = True
                 agent_result.large_model_calls += 1
 
-                # 流式事件：大模型反馈
-                self._emit("large_model_feedback", {
-                    "iteration": iteration,
-                    "status": feedback.status,
-                    "first_error_step": feedback.first_error_step,
-                    "error_type": feedback.error_type,
-                    "hint": feedback.hint,
-                })
-
                 # ---- Session Persistence: log large model feedback ----
                 self.session_store.append_model_output(
                     self._current_session_id,
@@ -2874,14 +2792,6 @@ class CoTReActAgent:
 
             record.time_ms = (time.time() - iter_start) * 1000
             agent_result.iterations.append(record)
-
-            # 流式事件：迭代结束
-            self._emit("iteration_end", {
-                "iteration": iteration,
-                "success": record.execution_result.success,
-                "used_large_model": record.used_large_model,
-                "time_ms": record.time_ms,
-            })
 
             # ---- Compaction Pipeline: 累积本次迭代消息到历史 ----
             self._iteration_history.extend([
@@ -2961,18 +2871,6 @@ class CoTReActAgent:
                 "session_id": self._current_session_id,
             }
         )
-
-        # 流式事件：任务完成
-        self._emit("done", {
-            "success": agent_result.success,
-            "fixed_code": agent_result.fixed_code,
-            "total_iterations": agent_result.total_iterations,
-            "large_model_calls": agent_result.large_model_calls,
-            "total_time_ms": agent_result.total_time_ms,
-            "used_reflections": agent_result.used_past_reflections,
-            "used_skills": agent_result.used_skills or [],
-            "skill_extracted": getattr(agent_result, "skill_extracted", None),
-        })
 
         return agent_result
 
@@ -3637,44 +3535,34 @@ class CoTReActAgent:
     # ---- Reflexion: Generate Reflection from Failed Attempt ----
     def _generate_reflection(self, bug_desc: str, buggy_code: str,
                              agent_result: AgentResult) -> Optional[Reflection]:
-        """
-        生成反思。
+        attempt_history = ""
+        for rec in agent_result.iterations:
+            cot_text = self.parser.format_steps_as_text(rec.cot_steps)
+            attempt_history += (
+                f"\n== Attempt {rec.iteration} ==\n"
+                f"Reasoning:\n{cot_text}\n"
+                f"Code:\n```python\n{rec.fixed_code[:300]}\n```\n"
+                f"Result: {rec.execution_result.error_type} - "
+                f"{rec.execution_result.error_message[:150]}\n"
+            )
+            if rec.large_model_feedback:
+                fb = rec.large_model_feedback
+                attempt_history += (
+                    f"Reviewer STATUS: {fb.status}, "
+                    f"error at Step {fb.first_error_step}, "
+                    f"hint: {fb.hint[:100]}\n"
+                )
 
-        上下文管理策略：
-        - 先估算总 token 数，超过 max_reflection_tokens 则截断
-        - 截断顺序：按迭代轮次从后往前截（最新迭代优先保留）
-        - 代码片段最多 300 字符，错误信息最多 150 字符
-        - 使用大模型或小模型取决于 reflection_model 配置
-        """
-        attempt_history = self._build_attempt_history(agent_result)
-
-        # ---- 上下文长度截断 ----
-        reflection_prompt = REFLECTION_PROMPT.format(
+        prompt = REFLECTION_PROMPT.format(
             max_iterations=self.max_iterations,
             buggy_code=buggy_code,
             bug_description=bug_desc,
             attempt_history=attempt_history,
         )
 
-        estimated_tokens = self._estimate_tokens(reflection_prompt)
-        if estimated_tokens > self.max_reflection_tokens:
-            logger.warning(
-                f"[Reflexion] Prompt too long: ~{estimated_tokens} tokens "
-                f"(limit: {self.max_reflection_tokens}). Truncating..."
-            )
-            reflection_prompt = self._truncate_reflection_prompt(
-                reflection_prompt, self.max_reflection_tokens
-            )
-
-        # ---- 选择模型 ----
-        model_fn = self.large_model if self.reflection_model == "large" else self.small_model
-        model_name = "large" if self.reflection_model == "large" else "small"
-        logger.info(f"[Reflexion] Generating reflection with {model_name} model")
-
         try:
-            raw = model_fn(
-                reflection_prompt,
-                "You are an expert reflecting on failed attempts. Respond in JSON only.",
+            raw = self.large_model(
+                prompt, "You are an expert reflecting on failed attempts. Respond in JSON only."
             )
 
             json_match = re.search(r'```json\s*(.*?)\s*```', raw, re.DOTALL)
@@ -3696,156 +3584,9 @@ class CoTReActAgent:
                 bug_keywords=keywords,
                 source_bug_hash=code_hash,
             )
-        except json.JSONDecodeError as e:
-            logger.warning(f"[Reflexion] Failed to parse JSON from reflection: {e}")
-            return None
         except Exception as e:
-            logger.warning(f"[Reflexion] Failed to generate reflection: {e}")
+            logger.warning(f"Failed to generate reflection: {e}")
             return None
-
-    def _build_attempt_history(self, agent_result: AgentResult) -> str:
-        """
-        构建 attempt history 字符串。
-
-        每节长度限制（宽松到合理范围）：
-        - CoT 推理：每步最多 400 字符（足够看清推理步骤）
-        - 修复代码：最多 800 字符（一个中等函数的行数）
-        - 执行结果：最多 300 字符（完整错误信息）
-        - 大模型反馈：最多 200 字符（hint）
-        """
-        CODEREF_MAX = 800   # 修复代码上限（char）
-        COT_MAX = 400       # 单步 CoT 上限（char）
-        ERROR_MAX = 300     # 错误信息上限（char）
-        HINT_MAX = 200      # hint 上限（char）
-
-        parts = []
-        for rec in agent_result.iterations:
-            # CoT 分步截断
-            cot_steps = self.parser.format_steps_as_text(rec.cot_steps)
-            truncated_steps = "\n".join(
-                line[:COT_MAX] for line in cot_steps.splitlines()
-            )
-
-            entry = (
-                f"\n== Attempt {rec.iteration} ==\n"
-                f"Reasoning:\n{truncated_steps}\n"
-                f"Code:\n```python\n{rec.fixed_code[:CODEREF_MAX]}\n```\n"
-                f"Result: {rec.execution_result.error_type} - "
-                f"{rec.execution_result.error_message[:ERROR_MAX]}\n"
-            )
-            if rec.large_model_feedback:
-                fb = rec.large_model_feedback
-                entry += (
-                    f"Reviewer STATUS: {fb.status}, "
-                    f"error at Step {fb.first_error_step}, "
-                    f"hint: {fb.hint[:HINT_MAX]}\n"
-                )
-            parts.append(entry)
-        return "\n".join(parts)
-
-    @staticmethod
-    def _estimate_tokens(text: str) -> int:
-        """
-        估算 token 数。
-
-        优先级：
-        1. tiktoken cl100k_base（GPT-4/3.5 同款，最准）
-        2. 降级：char / 3.5（代码密集文本的平均值，比 /4 更紧）
-        """
-        if _ENCODER is not None:
-            return len(_ENCODER.encode(text))
-        return max(1, int(len(text) / 3.5))
-
-    def _truncate_reflection_prompt(self, prompt: str, max_tokens: int) -> str:
-        """
-        基于 token 数精确截断反思 prompt。
-
-        优先级保留（从高到低）：
-        1. 模板系统指令（固定 ~400 tokens，无法裁剪）
-        2. Bug description（~200 tokens）
-        3. 迭代历史（按轮次从后往前删，直到总 token 达标）
-        4. Buggy code（截断到前 N 字符）
-        """
-        HEADER_OVERHEAD = 500  # 模板 + system prompt 的 token 数（估算）
-        available = max_tokens - HEADER_OVERHEAD
-
-        if available <= 0:
-            return prompt[:max_tokens * 3]
-
-        # 估算当前 attempt_history 的 token 数
-        if "Attempt History:" in prompt:
-            header = prompt.split("Attempt History:", 1)[0] + "Attempt History:"
-            history_text = prompt.split("Attempt History:", 1)[1]
-
-            # buggy_code 部分（如果有）
-            buggy_code_section = ""
-            if "Buggy Code:" in history_text:
-                parts = history_text.split("Buggy Code:", 1)
-                history_text = parts[0]
-                buggy_code_section = "Buggy Code:" + parts[1]
-
-            history_tokens = self._estimate_tokens(history_text)
-            buggy_tokens = self._estimate_tokens(buggy_code_section)
-            total_content_tokens = history_tokens + buggy_tokens
-
-            if total_content_tokens <= available:
-                return prompt  # 不需要截断
-
-            # 按比例分配可用 token
-            if total_content_tokens > 0:
-                history_budget = int(available * history_tokens / total_content_tokens)
-                buggy_budget = available - history_budget
-            else:
-                history_budget = available
-                buggy_budget = 0
-
-            # 按比例截断 history（先从最后一代往前删）
-            # 每节 = "== Attempt N ==" 约 20 tokens
-            SECTION_HEADER_TOKENS = 20
-            sections = history_text.strip().split("\n== Attempt")
-            budget_per_section = max(SECTION_HEADER_TOKENS, history_budget // max(len(sections), 1))
-
-            kept_sections = []
-            used_tokens = 0
-            # 从最新的迭代开始，尽量保留更多
-            for i in range(len(sections) - 1, -1, -1):
-                section = sections[i]
-                if not section.strip():
-                    continue
-                section_tokens = self._estimate_tokens(section)
-                if used_tokens + section_tokens <= history_budget:
-                    kept_sections.insert(0, section)
-                    used_tokens += section_tokens
-                # 即使超预算也保留最新的一节（至少有一个 attempt）
-                if i == len(sections) - 1 and not kept_sections:
-                    truncated_section = self._token_truncate_text(
-                        "\n== Attempt" + section, history_budget
-                    )
-                    kept_sections.insert(0, truncated_section.replace("\n== Attempt", ""))
-                    break
-
-            truncated_history = "\n== Attempt".join(kept_sections)
-
-            # buggy_code 按字符数截断（1 token ≈ 3.5 chars）
-            if buggy_code_section and buggy_budget > 50:
-                buggy_chars = int(buggy_budget * 3.5)
-                buggy_code_section = buggy_code_section[:buggy_chars]
-
-            return header + truncated_history + buggy_code_section
-        else:
-            # 没有 history，直接按字符截断
-            return self._token_truncate_text(prompt, max_tokens)
-
-    @staticmethod
-    def _token_truncate_text(text: str, max_tokens: int) -> str:
-        """按 token 数截断文本"""
-        if _ENCODER is not None:
-            tokens = _ENCODER.encode(text)
-            if len(tokens) <= max_tokens:
-                return text
-            return _ENCODER.decode(tokens[:max_tokens])
-        # 降级
-        return text[:max_tokens * 3]
 
 
 # ==================== Error Attribution Tracker ====================

@@ -1,0 +1,131 @@
+You are a senior Python maintainer.
+Repo: requests
+
+Goal: produce a patch to fix the failing tests by analyzing the current buggy code directly.
+Rules:
+- Output MUST be a complete unified diff (git apply format).
+- Include MORE context lines around the change (at least 5-10 lines before and after to help git apply match correctly).
+- Do NOT include explanations.
+- Do NOT change tests.
+- Keep patch minimal but complete - ensure all necessary context is included for git apply to work.
+- The diff must be syntactically correct and complete.
+- CRITICAL: Include generous surrounding lines to help git apply find the correct location even if line numbers shift slightly.
+- CRITICAL: ONLY change the buggy lines and their immediate context. Do NOT include unrelated functions or code sections.
+- CRITICAL: Do NOT add comments or annotations that don't exist in the original code.
+
+EXAMPLE of CORRECT diff format (this is what you should output - note the generous context lines):
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -567,12 +567,12 @@ def iter_slices(string, slice_length):
+    def iter_slices(string, slice_length):
+        """Iterate over slices of a string."""
+-    pos = 7
++    pos = 0
+        if slice_length is None or slice_length <= 0:
+            slice_length = len(string)
+        while pos < len(string):
+            yield string[pos : pos + slice_length]
+            pos += slice_length
+
+Failing test nodeid:
+tests/test_utils.py::test_iter_slices[T-1]
+
+Short reason:
+AssertionError: assert 0 ...
+
+Failure snippet:
+
+
+Current buggy code (analyze this to find the issue):
+>>    1 | runs/20260128_110839_pytest_fast_0.txt:3:____________________________ test_iter_slices[T-1] _____________________________
+      2 | runs/20260128_110839_pytest_fast_0.txt:18:    def test_iter_slices(value, length):
+      3 | runs/20260128_110839_pytest_fast_0.txt:30:___________________________ test_iter_slices[Test-4] ___________________________
+      4 | runs/20260128_110839_pytest_fast_0.txt:45:    def test_iter_slices(value, length):
+      5 | runs/20260128_110839_pytest_fast_0.txt:57:___________________________ test_iter_slices[Cont-0] ___________________________
+      6 | runs/20260128_110839_pytest_fast_0.txt:72:    def test_iter_slices(value, length):
+      7 | runs/20260128_110839_pytest_fast_0.txt:82:__________________________ test_iter_slices[Other--5] __________________________
+      8 | runs/20260128_110839_pytest_fast_0.txt:97:    def test_iter_slices(value, length):
+      9 | runs/20260128_110839_pytest_fast_0.txt:107:________________________ test_iter_slices[Content-None] ________________________
+     10 | runs/20260128_110839_pytest_fast_0.txt:122:    def test_iter_slices(value, length):
+     11 | runs/20260128_110839_pytest_fast_0.txt:133:FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+     12 | runs/20260128_110839_pytest_fast_0.txt:134:FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+     13 | runs/20260128_110839_pytest_fast_0.txt:135:FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+     14 | runs/20260128_110839_pytest_fast_0.txt:136:FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+     15 | runs/20260128_110839_pytest_fast_0.txt:137:FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+     16 | tests/test_utils.py:656:def test_iter_slices(value, length):
+
+Ripgrep hits for "test_iter_slices":
+runs/20260128_110839_rg_hits.txt:1:runs/20260128_110839_pytest_fast_0.txt:3:____________________________ test_iter_slices[T-1] _____________________________
+runs/20260128_110839_rg_hits.txt:2:runs/20260128_110839_pytest_fast_0.txt:18:    def test_iter_slices(value, length):
+runs/20260128_110839_rg_hits.txt:3:runs/20260128_110839_pytest_fast_0.txt:30:___________________________ test_iter_slices[Test-4] ___________________________
+runs/20260128_110839_rg_hits.txt:4:runs/20260128_110839_pytest_fast_0.txt:45:    def test_iter_slices(value, length):
+runs/20260128_110839_rg_hits.txt:5:runs/20260128_110839_pytest_fast_0.txt:57:___________________________ test_iter_slices[Cont-0] ___________________________
+runs/20260128_110839_rg_hits.txt:6:runs/20260128_110839_pytest_fast_0.txt:72:    def test_iter_slices(value, length):
+runs/20260128_110839_rg_hits.txt:7:runs/20260128_110839_pytest_fast_0.txt:82:__________________________ test_iter_slices[Other--5] __________________________
+runs/20260128_110839_rg_hits.txt:8:runs/20260128_110839_pytest_fast_0.txt:97:    def test_iter_slices(value, length):
+runs/20260128_110839_rg_hits.txt:9:runs/20260128_110839_pytest_fast_0.txt:107:________________________ test_iter_slices[Content-None] ________________________
+runs/20260128_110839_rg_hits.txt:10:runs/20260128_110839_pytest_fast_0.txt:122:    def test_iter_slices(value, length):
+runs/20260128_110839_rg_hits.txt:11:runs/20260128_110839_pytest_fast_0.txt:133:FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+runs/20260128_110839_rg_hits.txt:12:runs/20260128_110839_pytest_fast_0.txt:134:FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+runs/20260128_110839_rg_hits.txt:13:runs/20260128_110839_pytest_fast_0.txt:135:FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+runs/20260128_110839_rg_hits.txt:14:runs/20260128_110839_pytest_fast_0.txt:136:FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+runs/20260128_110839_rg_hits.txt:15:runs/20260128_110839_pytest_fast_0.txt:137:FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+runs/20260128_110839_rg_hits.txt:16:tests/test_utils.py:656:def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:33:tests/test_utils.py::test_iter_slices[T-1]
+runs/20260128_110839_prompt_1.txt:44:>>    3 | ____________________________ test_iter_slices[T-1] _____________________________
+runs/20260128_110839_prompt_1.txt:59:     18 |     def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:71:     30 | ___________________________ test_iter_slices[Test-4] ___________________________
+runs/20260128_110839_prompt_1.txt:86:     45 |     def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:98:     57 | ___________________________ test_iter_slices[Cont-0] ___________________________
+runs/20260128_110839_prompt_1.txt:113:     72 |     def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:123:     82 | __________________________ test_iter_slices[Other--5] __________________________
+runs/20260128_110839_prompt_1.txt:136:Ripgrep hits for "test_iter_slices":
+runs/20260128_110839_prompt_1.txt:137:runs/20260128_110839_pytest_fast_0.txt:3:____________________________ test_iter_slices[T-1] _____________________________
+runs/20260128_110839_prompt_1.txt:138:runs/20260128_110839_pytest_fast_0.txt:18:    def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:139:runs/20260128_110839_pytest_fast_0.txt:30:___________________________ test_iter_slices[Test-4] ___________________________
+runs/20260128_110839_prompt_1.txt:140:runs/20260128_110839_pytest_fast_0.txt:45:    def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:141:runs/20260128_110839_pytest_fast_0.txt:57:___________________________ test_iter_slices[Cont-0] ___________________________
+runs/20260128_110839_prompt_1.txt:142:runs/20260128_110839_pytest_fast_0.txt:72:    def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:143:runs/20260128_110839_pytest_fast_0.txt:82:__________________________ test_iter_slices[Other--5] __________________________
+runs/20260128_110839_prompt_1.txt:144:runs/20260128_110839_pytest_fast_0.txt:97:    def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:145:runs/20260128_110839_pytest_fast_0.txt:107:________________________ test_iter_slices[Content-None] ________________________
+runs/20260128_110839_prompt_1.txt:146:runs/20260128_110839_pytest_fast_0.txt:122:    def test_iter_slices(value, length):
+runs/20260128_110839_prompt_1.txt:147:runs/20260128_110839_pytest_fast_0.txt:133:FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+runs/20260128_110839_prompt_1.txt:148:runs/20260128_110839_pytest_fast_0.txt:134:FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+runs/20260128_110839_prompt_1.txt:149:runs/20260128_110839_pytest_fast_0.txt:135:FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+runs/20260128_110839_prompt_1.txt:150:runs/20260128_110839_pytest_fast_0.txt:136:FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+runs/20260128_110839_prompt_1.txt:151:runs/20260128_110839_pytest_fast_0.txt:137:FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+runs/20260128_110839_prompt_1.txt:152:tests/test_utils.py:656:def test_iter_slices(value, length):
+tests/test_utils.py:656:def test_iter_slices(value, length):
+runs/20260128_110839_diag_fail.txt:1:nodeid=tests/test_utils.py::test_iter_slices[T-1]
+runs/20260128_110839_context_0.txt:3:>>    3 | ____________________________ test_iter_slices[T-1] _____________________________
+runs/20260128_110839_context_0.txt:18:     18 |     def test_iter_slices(value, length):
+runs/20260128_110839_context_0.txt:30:     30 | ___________________________ test_iter_slices[Test-4] ___________________________
+runs/20260128_110839_context_0.txt:45:     45 |     def test_iter_slices(value, length):
+runs/20260128_110839_context_0.txt:57:     57 | ___________________________ test_iter_slices[Cont-0] ___________________________
+runs/20260128_110839_context_0.txt:72:     72 |     def test_iter_slices(value, length):
+runs/20260128_110839_context_0.txt:82:     82 | __________________________ test_iter_slices[Other--5] __________________________
+runs/20260128_110839_pytest_fast_0.txt:3:____________________________ test_iter_slices[T-1] _____________________________
+runs/20260128_110839_pytest_fast_0.txt:18:    def test_iter_slices(value, length):
+runs/20260128_110839_pytest_fast_0.txt:30:___________________________ test_iter_slices[Test-4] ___________________________
+runs/20260128_110839_pytest_fast_0.txt:45:    def test_iter_slices(value, length):
+runs/20260128_110839_pytest_fast_0.txt:57:___________________________ test_iter_slices[Cont-0] ___________________________
+runs/20260128_110839_pytest_fast_0.txt:72:    def test_iter_slices(value, length):
+runs/20260128_110839_pytest_fast_0.txt:82:__________________________ test_iter_slices[Other--5] __________________________
+runs/20260128_110839_pytest_fast_0.txt:97:    def test_iter_slices(value, length):
+runs/20260128_110839_pytest_fast_0.txt:107:________________________ test_iter_slices[Content-None] ________________________
+runs/20260128_110839_pytest_fast_0.txt:122:    def test_iter_slices(value, length):
+runs/20260128_110839_pytest_fast_0.txt:133:FAILED tests/test_utils.py::test_iter_slices[T-1] - AssertionError: assert 0 ...
+runs/20260128_110839_pytest_fast_0.txt:134:FAILED tests/test_utils.py::test_iter_slices[Test-4] - AssertionError: assert...
+runs/20260128_110839_pytest_fast_0.txt:135:FAILED tests/test_utils.py::test_iter_slices[Cont-0] - AssertionError: assert...
+runs/20260128_110839_pytest_fast_0.txt:136:FAILED tests/test_utils.py::test_iter_slices[Other--5] - AssertionError: asse...
+runs/20260128_110839_pytest_fast_0.txt:137:FAILED tests/test_utils.py::test_iter_slices[Content-None] - AssertionError: ...
+
+
+Analyze the current buggy code directly to understand the issue.
+The function iter_slices should start from position 0, not a hardcoded position like 7.
+Generate a patch that fixes the bug by correcting the logic.
+Include generous function context to ensure git apply works correctly even with slight line number variations.
+Now output ONLY the complete unified diff patch that fixes the issue:

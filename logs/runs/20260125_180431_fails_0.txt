@@ -1,0 +1,7 @@
+tests/test_utils.py::test_iter_slices[T-1]
+tests/test_utils.py::test_iter_slices[Test-4]
+tests/test_utils.py::test_iter_slices[Cont-0]
+tests/test_utils.py::test_iter_slices[Other--5]
+tests/test_utils.py::test_iter_slices[Content-None]
+
+keyword=test_iter_slices

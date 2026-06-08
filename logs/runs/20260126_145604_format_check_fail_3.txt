@@ -1,0 +1,5 @@
+Patch format check failed (strict, lenient, and function replacement):
+
+
+错误：打补丁失败：src/requests/utils.py:564
+错误：src/requests/utils.py：补丁未应用

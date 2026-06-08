@@ -63,8 +63,6 @@ from cot_react_agent import (
     Reflection, Skill, SessionStore,
 )
 from enhanced_agent import BugFixRetriever
-from llm_router import LLMRouter, CircuitBreakerConfig, BackoffConfig, wrap_ollama_for_router, wrap_openai_for_router
-from token_tracker import TokenTracker, AlertLevel
 
 # ==================== Logging ====================
 
@@ -724,11 +722,6 @@ class AppState:
         self.sandbox: Optional[ShellSandbox] = None
         self.test_runner: Optional[TestRunner] = None
 
-        # LLM Router with circuit breakers + exponential backoff
-        self.llm_router: Optional[LLMRouter] = None
-        # Token usage tracker with per-API-key stats + cost + quota alerts
-        self.token_tracker: Optional[TokenTracker] = None
-
     def init_sandbox(
         self,
         timeout: float = 10.0,
@@ -784,78 +777,10 @@ class AppState:
         )
         logger.info(f"Agent built in {mode} mode")
 
-    def init_llm_router(
-        self,
-        model_configs: Optional[List[Dict]] = None,
-        fallback_chain: Optional[List[str]] = None,
-    ):
-        """Initialize LLM Router with circuit breakers and fallback chains."""
-        cb_cfg = CircuitBreakerConfig(
-            failure_threshold=CFG.llm.failure_threshold,
-            success_threshold=CFG.llm.success_threshold,
-            open_timeout=CFG.llm.circuit_open_timeout,
-            half_open_max_calls=CFG.llm.half_open_max_calls,
-        )
-        backoff_cfg = BackoffConfig(
-            base_delay=CFG.llm.backoff_base_delay,
-            max_delay=CFG.llm.backoff_max_delay,
-            exponent=CFG.llm.backoff_exponent,
-            jitter=CFG.llm.backoff_jitter,
-            max_retries=CFG.llm.max_retries,
-        )
-        self.llm_router = LLMRouter(backoff_config=backoff_cfg, circuit_config=cb_cfg)
-
-        if model_configs:
-            for cfg in model_configs:
-                self.llm_router.register_model(**cfg)
-        if fallback_chain:
-            self.llm_router.register_fallback_chain(fallback_chain)
-
-        logger.info(f"[AppState] LLM Router initialized with {len(self.llm_router._models)} models")
-
-    def init_token_tracker(
-        self,
-        webhook_url: Optional[str] = None,
-    ):
-        """Initialize Token Tracker with quota alerts."""
-        threshold_str = CFG.llm.alert_thresholds
-        thresholds = tuple(float(x) for x in threshold_str.split(","))
-
-        def alert_hook(alert):
-            if webhook_url:
-                try:
-                    import requests
-                    requests.post(webhook_url, json={"alert": str(alert)}, timeout=5)
-                except Exception:
-                    pass
-
-        self.token_tracker = TokenTracker(
-            persist_path=CFG.cost.token_tracker_persist_path,
-            alert_thresholds=thresholds,
-            alert_callback=alert_hook,
-        )
-
-        # Sync registered API keys into token tracker
-        for key, entry in api_keys._keys.items():
-            self.token_tracker.register_api_key(
-                api_key=key,
-                owner=entry.get("owner", "unknown"),
-                quota_per_day=entry.get("quota_per_day", CFG.cost.default_quota_per_day),
-            )
-
-        logger.info(f"[AppState] Token Tracker initialized: {len(self.token_tracker._key_stats)} keys tracked")
-
     def add_api_key(self, owner: str, is_admin: bool = False,
                     quota_per_day: int = 1000) -> str:
         """Register a new API key. Returns the raw key (show only once!)."""
-        key = api_keys.add_key(owner, is_admin, quota_per_day)
-        if self.token_tracker:
-            self.token_tracker.register_api_key(
-                api_key=key,
-                owner=owner,
-                quota_per_day=quota_per_day,
-            )
-        return key
+        return api_keys.add_key(owner, is_admin, quota_per_day)
 
     def revoke_api_key(self, key: str):
         api_keys.revoke(key)
@@ -1091,136 +1016,6 @@ def fix_bug(req: FixRequest, key_info: dict = Depends(rate_check)):
     except Exception as e:
         logger.exception(f"fix_bug failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# ==================== Streaming SSE Endpoints ====================
-
-@app.post("/fix/stream")
-def fix_bug_stream(req: FixRequest, key_info: dict = Depends(rate_check)):
-    """
-    SSE streaming version of /fix.
-    Pushes real-time events as Server-Sent Events as the agent works.
-
-    Event types pushed (one SSE message per line):
-      iteration_start  — new iteration begins
-      cot_generated   — small model CoT reasoning text
-      code_extracted  — parsed fixed code (first 500 chars)
-      compile_result  — compile + test outcome
-      large_model_feedback — large model error analysis
-      iteration_end   — iteration completes
-      memory_hit      — L2/L3 memory hit
-      done           — final result (last event)
-
-    Frontend usage:
-      const resp = await fetch('/fix/stream', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-API-Key': '...'},
-        body: JSON.stringify({bug_description: '...', buggy_code: '...'})
-      });
-      const reader = resp.body.getReader();
-      while (true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        const text = new TextDecoder().decode(value);
-        // parse SSE: each line starting with 'data: ' is a JSON event
-      }
-
-    Requires: X-API-Key header.
-    """
-    import queue, threading, sys
-    from streaming_utils import sse_event, sse_done, sse_error
-
-    if not state.agent:
-        raise HTTPException(status_code=503, detail="Agent not initialized.")
-
-    # Thread-safe queue for real-time event delivery
-    event_queue: queue.Queue = queue.Queue(maxsize=500)
-
-    def event_callback(event_type: str, data: dict, iteration: int):
-        """Called synchronously inside fix_bug() loop by the agent."""
-        sse_str = sse_event(event_type, data, iteration)
-        try:
-            event_queue.put_nowait(sse_str)
-        except queue.Full:
-            pass  # Drop if overwhelmed
-
-    # Shallow-copy agent so we don't mutate shared state across requests
-    from copy import copy
-    agent = copy(state.agent)
-    original_callback = getattr(state.agent, 'event_callback', None)
-    agent.event_callback = event_callback
-
-    test_dicts = [tc.model_dump() for tc in req.test_cases]
-    session_id = req.session_id or str(uuid.uuid4())[:8]
-
-    if state.session_manager:
-        state.session_manager.start_session(session_id, metadata={
-            "bug_type": req.bug_description[:50],
-            "language": req.language,
-            "streaming": True,
-        })
-
-    error_occurred = [None]  # nonlocal error holder
-
-    def run_agent():
-        """Run in separate thread so we can yield events concurrently."""
-        try:
-            agent.fix_bug(
-                bug_description=req.bug_description,
-                buggy_code=req.buggy_code,
-                test_cases=test_dicts,
-                session_id=session_id,
-            )
-        except Exception as e:
-            logger.exception(f"fix_bug_stream agent failed: {e}")
-            error_occurred[0] = str(e)
-        finally:
-            event_queue.put(None)  # Sentinel: end of stream
-
-    # Start agent in background thread
-    t = threading.Thread(target=run_agent, daemon=True)
-    t.start()
-
-    def event_generator():
-        """Generator that yields SSE events as they arrive in the queue."""
-        yield f"event: phase\ndata: {json.dumps({'phase': 'start'}, ensure_ascii=False)}\n\n"
-
-        while True:
-            try:
-                item = event_queue.get(timeout=60)
-            except queue.Empty:
-                # Keep-alive heartbeat every 60s
-                yield "event: heartbeat\ndata: {}\n\n"
-                continue
-
-            if item is None:
-                # Agent finished
-                break
-            yield item
-
-        # Error
-        if error_occurred[0]:
-            yield sse_error(error_occurred[0])
-
-        # Final done event (already emitted by agent's done callback if present)
-        yield sse_done({
-            "session_id": session_id,
-            "error": error_occurred[0],
-        })
-
-    # Restore original agent state (best effort)
-    if original_callback is not None:
-        state.agent.event_callback = original_callback
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        },
-    )
 
 
 @app.post("/eval", response_model=Dict)
@@ -1620,115 +1415,6 @@ def audit_stats(
     return audit_logger.summary(date)
 
 
-# ==================== LLM Router Endpoints ====================
-
-
-@app.get("/router/stats", response_model=Dict)
-def router_stats(_key_info: dict = Depends(require_admin)):
-    """Get LLM Router stats: circuit breaker states, token usage per model. Admin only."""
-    if not state.llm_router:
-        raise HTTPException(status_code=503, detail="LLM Router not initialized")
-    return state.llm_router.get_stats()
-
-
-@app.get("/router/circuit/{model}", response_model=Dict)
-def router_circuit_state(model: str, _key_info: dict = Depends(require_admin)):
-    """Get circuit breaker state for a specific model. Admin only."""
-    if not state.llm_router:
-        raise HTTPException(status_code=503, detail="LLM Router not initialized")
-    states = state.llm_router.get_circuit_states()
-    if model not in states:
-        raise HTTPException(status_code=404, detail=f"No circuit breaker for model '{model}'")
-    return states[model]
-
-
-@app.post("/router/circuit/{model}/reset", response_model=Dict)
-def router_reset_circuit(model: str, _key_info: dict = Depends(require_admin)):
-    """Reset the circuit breaker for a specific model (force CLOSED). Admin only."""
-    if not state.llm_router:
-        raise HTTPException(status_code=503, detail="LLM Router not initialized")
-    state.llm_router.reset_circuit(model)
-    return {"status": "ok", "model": model, "circuit_state": "closed"}
-
-
-# ==================== Token Tracker Endpoints ====================
-
-
-@app.get("/tokens/usage", response_model=Dict)
-def token_usage(_key_info: dict = Depends(require_admin)):
-    """Get aggregated token usage and cost across all API keys. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    return state.token_tracker.get_stats()
-
-
-@app.get("/tokens/usage/{api_key}", response_model=Dict)
-def token_usage_key(api_key: str, _key_info: dict = Depends(require_admin)):
-    """Get token usage and cost for a specific API key. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    stats = state.token_tracker.get_stats(api_key)
-    if not stats:
-        raise HTTPException(status_code=404, detail="API key not found in tracker")
-    return stats
-
-
-@app.get("/tokens/quota/{api_key}", response_model=Dict)
-def token_quota(api_key: str, _key_info: dict = Depends(require_admin)):
-    """Get quota status (used/remaining/percent) for a specific API key. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    return state.token_tracker.get_quota_status(api_key)
-
-
-@app.get("/tokens/top-consumers", response_model=List[Dict])
-def token_top_consumers(
-    limit: int = Query(10, ge=1, le=100),
-    by: str = Query("cost", regex="^(cost|tokens|requests)$"),
-    _key_info: dict = Depends(require_admin),
-):
-    """Get top N API keys by cost, tokens, or request count. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    return state.token_tracker.get_top_consumers(limit=limit, by=by)
-
-
-@app.get("/tokens/alerts", response_model=List[Dict])
-def token_alerts(
-    limit: int = Query(50, ge=1, le=200),
-    _key_info: dict = Depends(require_admin),
-):
-    """Get recent quota alert history. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    return state.token_tracker.get_alert_history(limit=limit)
-
-
-@app.get("/tokens/pricing", response_model=Dict)
-def token_pricing(_key_info: dict = Depends(require_admin)):
-    """Get configured model pricing. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    return state.token_tracker.get_model_pricing()
-
-
-class QuotaUpdateRequest(BaseModel):
-    quota_per_day: int = Field(..., ge=1, le=1000000)
-
-
-@app.patch("/tokens/quota/{api_key}")
-def token_update_quota(
-    api_key: str,
-    req: QuotaUpdateRequest,
-    _key_info: dict = Depends(require_admin),
-):
-    """Update daily quota for an API key. Admin only."""
-    if not state.token_tracker:
-        raise HTTPException(status_code=503, detail="Token Tracker not initialized")
-    state.token_tracker.set_quota(api_key, req.quota_per_day)
-    return {"status": "ok", "api_key": api_key[:10] + "***", "quota_per_day": req.quota_per_day}
-
-
 # ==================== CLI Entry Point ====================
 
 def parse_args():
@@ -1789,22 +1475,6 @@ def parse_args():
                         help="Max audit log file size before rotation (default from CFG)")
     parser.add_argument("--audit-max-lines", type=int, default=CFG.memory.audit_log_max_lines,
                         help="Max audit log lines before rotation (default from CFG)")
-    parser.add_argument("--llm-model", action="append", dest="llm_models",
-                        default=[],
-                        help="Add an LLM model to the router. Format: name,cost_in,cost_out,max_tokens "
-                             "(e.g. gpt-4o,0.005,0.015,4096). Can be repeated.")
-    parser.add_argument("--llm-chain", type=str, default=None,
-                        help="Fallback chain as comma-separated model names "
-                             "(e.g. gpt-4o,gpt-4o-mini,claude-3-haiku)")
-    parser.add_argument("--llm-openai-key", type=str, default=None,
-                        help="OpenAI API key for OpenAI-compatible models in the router")
-    parser.add_argument("--llm-openai-base", type=str, default="https://api.openai.com/v1",
-                        help="OpenAI-compatible base URL (default: OpenAI)")
-    parser.add_argument("--token-tracker-persist", type=str,
-                        default=CFG.cost.token_tracker_persist_path,
-                        help="Path for token tracker persistence (default: ./runs/token_tracker.json)")
-    parser.add_argument("--quota-alert-webhook", type=str, default=None,
-                        help="Webhook URL for quota alert notifications")
     return parser.parse_args()
 
 
@@ -1812,6 +1482,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     # Rate limit config
+    global rate_limiter
     rate_limiter = SlidingWindowRateLimiter(
         max_requests=args.rate_limit,
         window_seconds=60,
@@ -1842,15 +1513,15 @@ if __name__ == "__main__":
             logger.info(f"Pre-registered admin key: {mask_key(key)}")
 
     if args.no_auth:
-        # Dev mode: inject a passthrough dependency by reassigning module-level names
+        # Dev mode: inject a passthrough dependency
         import fastapi
-        def _passthrough(_: str = Header(None)) -> dict:
+        global require_api_key, require_admin, rate_check
+        def require_api_key(_: str = Header(None)) -> dict:
             return {"owner": "dev", "is_admin": True}
-        # Override the module-level dependency functions
-        import api.api_server as _mod
-        _mod.require_api_key = _passthrough
-        _mod.require_admin = _passthrough
-        _mod.rate_check = _passthrough
+        def require_admin(_: str = Header(None)) -> dict:
+            return {"owner": "dev", "is_admin": True}
+        def rate_check(_: str = Header(None)) -> dict:
+            return {"owner": "dev", "is_admin": True}
         logger.warning("!!! Auth DISABLED (--no-auth) — do not use in production !!!")
 
     # Initialize memory components
@@ -1887,6 +1558,7 @@ if __name__ == "__main__":
         )
 
     # Update audit logger with rotation config
+    global audit_logger
     audit_logger = AuditLogger(
         log_dir=CFG.memory.log_dir,
         max_bytes=args.audit_max_bytes,
@@ -1894,46 +1566,6 @@ if __name__ == "__main__":
         backup_count=5,
     )
     logger.info(f"Audit log rotation: max_bytes={args.audit_max_bytes}, max_lines={args.audit_max_lines}")
-
-    # Initialize Token Tracker
-    state.init_token_tracker(webhook_url=args.quota_alert_webhook)
-
-    # Initialize LLM Router
-    model_configs = []
-    if args.llm_models:
-        for entry in args.llm_models:
-            parts = entry.split(",")
-            if len(parts) < 3:
-                logger.warning(f"Invalid --llm-model format: {entry}, skipping")
-                continue
-            cfg = {
-                "name": parts[0],
-                "cost_per_1k_input": float(parts[1]),
-                "cost_per_1k_output": float(parts[2]),
-                "max_tokens": int(parts[3]) if len(parts) > 3 else 4096,
-            }
-            # Wrap Ollama or OpenAI
-            if cfg["name"].startswith("ollama:"):
-                model_name = cfg["name"].replace("ollama:", "")
-                cfg["call_fn"] = wrap_ollama_for_router(
-                    model_name=model_name,
-                    base_url=args.ollama_url,
-                )
-                cfg["name"] = model_name
-            elif args.llm_openai_key:
-                cfg["call_fn"] = wrap_openai_for_router(
-                    model=cfg["name"],
-                    api_key=args.llm_openai_key,
-                    base_url=args.llm_openai_base,
-                )
-            model_configs.append(cfg)
-
-    fallback_chain = None
-    if args.llm_chain:
-        fallback_chain = [m.strip() for m in args.llm_chain.split(",")]
-
-    if model_configs:
-        state.init_llm_router(model_configs=model_configs, fallback_chain=fallback_chain)
 
     logger.info(f"Starting server on http://{args.host}:{args.port}")
     uvicorn.run(

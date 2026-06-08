@@ -1,0 +1,241 @@
+You are a senior Python maintainer and code reviewer.
+Repo: requests
+
+Goal: Verify if the proposed patch is correct and will fix the failing tests.
+
+Rules for a valid patch:
+1. Must be in unified diff format (starts with "diff --git")
+2. Must be syntactically correct Python code
+3. Must logically fix the reported issue
+4. Must not break existing functionality
+5. Must not modify test files
+6. Must be minimal and focused on the issue
+
+Proposed patch:
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 225f8919..8ab55852 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -567,7 +567,7 @@ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+     pos = 0
+     if slice_length is None or slice_length <= 0:
+-        slice_length = len(string)
++        slice_length = len(string) if len(string) > 0 else 1
+     while pos < len(string):
+         yield string[pos:pos + slice_length]
+         pos += slice_length
+
+Failing test nodeid:
+tests/test_utils.py::test_iter_slices[T-1]
+
+Short reason:
+AssertionError: assert 0 ...
+
+Failure snippet:
+
+
+Current git diff (before patch):
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+index 8ab55852..225f8919 100644
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -570,7 +570,7 @@ def stream_decode_response_unicode(iterator, r):
+ 
+ def iter_slices(string, slice_length):
+     """Iterate over slices of a string."""
+-    pos = 0
++    pos = 7
+     if slice_length is None or slice_length <= 0:
+         slice_length = len(string)
+     while pos < len(string):
+
+
+Ripgrep hits for "test_iter_slices":
+tests/test_utils.py:656:def test_iter_slices(value, length):
+
+
+Relevant source context:
+    566 | @pytest.mark.parametrize(
+    567 |     "value, expected",
+    568 |     (
+    569 |         ("application/xml", ("application/xml", {})),
+    570 |         (
+    571 |             "application/json ; charset=utf-8",
+    572 |             ("application/json", {"charset": "utf-8"}),
+    573 |         ),
+    574 |         (
+    575 |             "application/json ; Charset=utf-8",
+    576 |             ("application/json", {"charset": "utf-8"}),
+    577 |         ),
+    578 |         ("text/plain", ("text/plain", {})),
+    579 |         (
+    580 |             "multipart/form-data; boundary = something ; boundary2='something_else' ; no_equals ",
+    581 |             (
+    582 |                 "multipart/form-data",
+    583 |                 {
+    584 |                     "boundary": "something",
+    585 |                     "boundary2": "something_else",
+    586 |                     "no_equals": True,
+    587 |                 },
+    588 |             ),
+    589 |         ),
+    590 |         (
+    591 |             'multipart/form-data; boundary = something ; boundary2="something_else" ; no_equals ',
+    592 |             (
+    593 |                 "multipart/form-data",
+    594 |                 {
+    595 |                     "boundary": "something",
+    596 |                     "boundary2": "something_else",
+    597 |                     "no_equals": True,
+    598 |                 },
+    599 |             ),
+    600 |         ),
+    601 |         (
+    602 |             "multipart/form-data; boundary = something ; 'boundary2=something_else' ; no_equals ",
+    603 |             (
+    604 |                 "multipart/form-data",
+    605 |                 {
+    606 |                     "boundary": "something",
+    607 |                     "boundary2": "something_else",
+    608 |                     "no_equals": True,
+    609 |                 },
+    610 |             ),
+    611 |         ),
+    612 |         (
+    613 |             'multipart/form-data; boundary = something ; "boundary2=something_else" ; no_equals ',
+    614 |             (
+    615 |                 "multipart/form-data",
+    616 |                 {
+    617 |                     "boundary": "something",
+    618 |                     "boundary2": "something_else",
+    619 |                     "no_equals": True,
+    620 |                 },
+    621 |             ),
+    622 |         ),
+    623 |         ("application/json ; ; ", ("application/json", {})),
+    624 |     ),
+    625 | )
+    626 | def test__parse_content_type_header(value, expected):
+    627 |     assert _parse_content_type_header(value) == expected
+    628 | 
+    629 | 
+    630 | @pytest.mark.parametrize(
+    631 |     "value, expected",
+    632 |     (
+    633 |         (CaseInsensitiveDict(), None),
+    634 |         (
+    635 |             CaseInsensitiveDict({"content-type": "application/json; charset=utf-8"}),
+    636 |             "utf-8",
+    637 |         ),
+    638 |         (CaseInsensitiveDict({"content-type": "text/plain"}), "ISO-8859-1"),
+    639 |     ),
+    640 | )
+    641 | def test_get_encoding_from_headers(value, expected):
+    642 |     assert get_encoding_from_headers(value) == expected
+    643 | 
+    644 | 
+    645 | @pytest.mark.parametrize(
+    646 |     "value, length",
+    647 |     (
+    648 |         ("", 0),
+    649 |         ("T", 1),
+    650 |         ("Test", 4),
+    651 |         ("Cont", 0),
+    652 |         ("Other", -5),
+    653 |         ("Content", None),
+    654 |     ),
+    655 | )
+>>  656 | def test_iter_slices(value, length):
+    657 |     if length is None or (length <= 0 and len(value) > 0):
+    658 |         # Reads all content at once
+    659 |         assert len(list(iter_slices(value, length))) == 1
+    660 |     else:
+    661 |         assert len(list(iter_slices(value, 1))) == length
+    662 | 
+    663 | 
+    664 | @pytest.mark.parametrize(
+    665 |     "value, expected",
+    666 |     (
+    667 |         (
+    668 |             '<http:/.../front.jpeg>; rel=front; type="image/jpeg"',
+    669 |             [{"url": "http:/.../front.jpeg", "rel": "front", "type": "image/jpeg"}],
+    670 |         ),
+    671 |         ("<http:/.../front.jpeg>", [{"url": "http:/.../front.jpeg"}]),
+    672 |         ("<http:/.../front.jpeg>;", [{"url": "http:/.../front.jpeg"}]),
+    673 |         (
+    674 |             '<http:/.../front.jpeg>; type="image/jpeg",<http://.../back.jpeg>;',
+    675 |             [
+    676 |                 {"url": "http:/.../front.jpeg", "type": "image/jpeg"},
+    677 |                 {"url": "http://.../back.jpeg"},
+    678 |             ],
+    679 |         ),
+    680 |         ("", []),
+    681 |     ),
+    682 | )
+    683 | def test_parse_header_links(value, expected):
+    684 |     assert parse_header_links(value) == expected
+    685 | 
+    686 | 
+    687 | @pytest.mark.parametrize(
+    688 |     "value, expected",
+    689 |     (
+    690 |         ("example.com/path", "http://example.com/path"),
+    691 |         ("//example.com/path", "http://example.com/path"),
+    692 |         ("example.com:80", "http://example.com:80"),
+    693 |         (
+    694 |             "http://user:pass@example.com/path?query",
+    695 |             "http://user:pass@example.com/path?query",
+    696 |         ),
+    697 |         ("http://user@example.com/path?query", "http://user@example.com/path?query"),
+    698 |     ),
+    699 | )
+    700 | def test_prepend_scheme_if_needed(value, expected):
+    701 |     assert prepend_scheme_if_needed(value, "http") == expected
+    702 | 
+    703 | 
+    704 | @pytest.mark.parametrize(
+    705 |     "value, expected",
+    706 |     (
+    707 |         ("T", "T"),
+    708 |         (b"T", "T"),
+    709 |         ("T", "T"),
+    710 |     ),
+    711 | )
+    712 | def test_to_native_string(value, expected):
+    713 |     assert to_native_string(value) == expected
+    714 | 
+    715 | 
+    716 | @pytest.mark.parametrize(
+    717 |     "url, expected",
+    718 |     (
+    719 |         ("http://u:p@example.com/path?a=1#test", "http://example.com/path?a=1"),
+    720 |         ("http://example.com/path", "http://example.com/path"),
+    721 |         ("//u:p@example.com/path", "//example.com/path"),
+    722 |         ("//example.com/path", "//example.com/path"),
+    723 |         ("example.com/path", "//example.com/path"),
+    724 |         ("scheme:u:p@example.com/path", "scheme://example.com/path"),
+    725 |     ),
+    726 | )
+    727 | def test_urldefragauth(url, expected):
+    728 |     assert urldefragauth(url) == expected
+    729 | 
+    730 | 
+    731 | @pytest.mark.parametrize(
+    732 |     "url, expected",
+    733 |     (
+    734 |         ("http://192.168.0.1:5000/", True),
+    735 |         ("http://192.168.0.1/", True),
+    736 |         ("http://172.16.1.1/", True),
+    737 |         ("http://172.16.1.1:5000/", True),
+    738 |         ("http://localhost.localdomain:5000/v1.0/", True),
+    739 |         ("http://google.com:6000/", True),
+    740 |         ("http://172.16.1.12/", False),
+    741 |         ("http://172.16.1.12:5000/", False),
+    742 |         ("http://google.com:5000/v1.0/", False),
+    743 |         ("file:///some/path/on/disk", True),
+    744 |     ),
+    745 | )
+    746 | def test_should_bypass_proxies(url, expected, monkeypatch):
+
+Please respond with ONLY "VALID" if the patch is correct and follows all rules, or "INVALID" if it does not meet the criteria. Do not provide any other text or explanation.

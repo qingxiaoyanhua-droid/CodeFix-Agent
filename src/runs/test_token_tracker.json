@@ -1,0 +1,91 @@
+{
+  "model_pricing": {
+    "gpt-4o": {
+      "cost_per_1k_input": 0.005,
+      "cost_per_1k_output": 0.015,
+      "max_context_tokens": 128000
+    },
+    "gpt-4o-mini": {
+      "cost_per_1k_input": 0.00015,
+      "cost_per_1k_output": 0.0006,
+      "max_context_tokens": 128000
+    },
+    "gpt-4-turbo": {
+      "cost_per_1k_input": 0.01,
+      "cost_per_1k_output": 0.03,
+      "max_context_tokens": 128000
+    },
+    "gpt-3.5-turbo": {
+      "cost_per_1k_input": 0.0005,
+      "cost_per_1k_output": 0.0015,
+      "max_context_tokens": 128000
+    },
+    "claude-3-opus": {
+      "cost_per_1k_input": 0.015,
+      "cost_per_1k_output": 0.075,
+      "max_context_tokens": 128000
+    },
+    "claude-3-sonnet": {
+      "cost_per_1k_input": 0.003,
+      "cost_per_1k_output": 0.015,
+      "max_context_tokens": 128000
+    },
+    "claude-3-haiku": {
+      "cost_per_1k_input": 0.00025,
+      "cost_per_1k_output": 0.00125,
+      "max_context_tokens": 128000
+    },
+    "gemini-1.5-pro": {
+      "cost_per_1k_input": 0.00125,
+      "cost_per_1k_output": 0.005,
+      "max_context_tokens": 128000
+    },
+    "gemini-1.5-flash": {
+      "cost_per_1k_input": 7.5e-05,
+      "cost_per_1k_output": 0.0003,
+      "max_context_tokens": 128000
+    },
+    "test-model": {
+      "cost_per_1k_input": 0.001,
+      "cost_per_1k_output": 0.002,
+      "max_context_tokens": 128000
+    }
+  },
+  "key_stats": {
+    "cfx_test1234567890": {
+      "api_key": "cfx_test1234567890",
+      "owner": "test",
+      "quota_per_day": 100,
+      "used_today": 1,
+      "used_tokens_prompt": 100,
+      "used_tokens_completion": 50,
+      "used_tokens_total": 150,
+      "total_requests": 1,
+      "total_cost_usd": 0.0002,
+      "created_at": 1780661909.2641916,
+      "reset_at": 1780661909.2641916,
+      "alert_level": "ok",
+      "model_breakdown": {
+        "test-model": {
+          "prompt_tokens": 100,
+          "completion_tokens": 50,
+          "total_tokens": 150,
+          "total_requests": 1,
+          "total_cost_usd": 0.0002,
+          "last_request_at": 1780661909.2641916
+        }
+      },
+      "request_history": [
+        {
+          "timestamp": 1780661909.2641916,
+          "model": "test-model",
+          "prompt_tokens": 100,
+          "completion_tokens": 50,
+          "total_tokens": 150,
+          "cost_usd": 0.0002
+        }
+      ]
+    }
+  },
+  "alert_history": []
+}

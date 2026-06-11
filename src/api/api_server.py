@@ -484,6 +484,14 @@ class FixRequest(BaseModel):
     max_iterations: int = Field(3, ge=1, le=10, description="Max agent iterations")
     language: str = Field("python", description="Programming language")
     use_rag: bool = Field(True, description="Enable knowledge base RAG retrieval")
+    memory_namespace: Optional[str] = Field(
+        None,
+        description=(
+            "Memory namespace for user isolation. When set, all persistent memory "
+            "(reflection, skills, e_pool, x_pool) is stored in runs/{namespace}/ "
+            "instead of runs/. When None, uses 'default' namespace for backward compat."
+        ),
+    )
 
 
 class FixResponse(BaseModel):
@@ -498,6 +506,7 @@ class FixResponse(BaseModel):
     skill_extracted: Optional[str]
     compute_savings: float
     iterations: List[Dict]
+    memory_namespace: str = "default"
     error: Optional[str] = None
 
 
@@ -708,11 +717,7 @@ class AppState:
         self.mode: str = "local"
         self.ollama_model: Optional[OllamaModel] = None
         self.server_model: Optional[ServerModel] = None
-        self.reflection_memory: Optional[ReflectionMemory] = None
-        self.skill_manager: Optional[SkillManager] = None
         self.rag_retriever: Optional[BugFixRetriever] = None
-        self.session_store: Optional[SessionStore] = None
-        self.session_manager: Optional[SessionManager] = None
 
         # In-memory tracking for background eval jobs
         self.eval_jobs: Dict[str, Dict] = {}
@@ -721,6 +726,96 @@ class AppState:
         # Shell sandbox for code execution
         self.sandbox: Optional[ShellSandbox] = None
         self.test_runner: Optional[TestRunner] = None
+
+        # Per-namespace memory components cache.
+        # Key: namespace string, Value: dict with reflection_memory, skill_manager, session_store
+        self._namespace_memories: Dict[str, Dict] = {}
+        self._embedding_model_name: str = "all-MiniLM-L6-v2"
+
+    def _get_or_create_memory_for_namespace(
+        self,
+        namespace: str,
+    ) -> Dict:
+        """
+        Get or create memory components (ReflectionMemory, SkillManager, SessionStore)
+        for the given namespace. All components share the same runs/{namespace}/ dir.
+        """
+        ns = _sanitize_namespace(namespace or "default")
+        if ns in self._namespace_memories:
+            return self._namespace_memories[ns]
+
+        mem_dir = _get_memory_dir(ns)
+        reflection_path = str(mem_dir / "reflection_memory.json")
+        skills_dir = str(mem_dir / "skills")
+        e_pool_path = str(mem_dir / "e_pool.json")
+        x_pool_path = str(mem_dir / "x_pool.json")
+
+        reflection_memory = ReflectionMemory(
+            memory_path=reflection_path,
+            embedding_model_name=self._embedding_model_name,
+        )
+        skill_manager = SkillManager(
+            skills_dir=skills_dir,
+            embedding_model_name=self._embedding_model_name,
+        )
+
+        # Redis session store when enabled; falls back to file store automatically
+        sessions_dir = str(mem_dir / "sessions")
+        if CFG.memory.session_redis_enabled and CFG.memory.redis_url:
+            session_store = SessionStore.create_redis_store(
+                redis_url=CFG.memory.redis_url,
+                namespace=ns,
+                fallback_sessions_dir=sessions_dir,
+            )
+            logger.info(f"[AppState] Redis session store enabled for namespace '{ns}'")
+        else:
+            session_store = SessionStore(sessions_dir=sessions_dir)
+
+        entry = {
+            "reflection_memory": reflection_memory,
+            "skill_manager": skill_manager,
+            "session_store": session_store,
+            "e_pool_path": e_pool_path,
+            "x_pool_path": x_pool_path,
+        }
+        self._namespace_memories[ns] = entry
+        logger.info(
+            f"[AppState] Created namespace '{ns}' memory components at {mem_dir}/"
+        )
+        return entry
+
+    def build_agent_for_namespace(self, mode: str, namespace: str = "default", **kwargs):
+        """
+        Build a CoTReActAgent for the given namespace.
+        Uses (or creates) namespace-isolated memory components.
+        """
+        self.mode = mode
+        mem = self._get_or_create_memory_for_namespace(namespace)
+        reflection_memory = mem["reflection_memory"]
+        skill_manager = mem["skill_manager"]
+        session_store = mem["session_store"]
+
+        # Build model wrappers
+        if mode == "local":
+            self.ollama_model = OllamaModel(**kwargs)
+            small = self.ollama_model
+            large = self.ollama_model
+        else:
+            self.server_model = ServerModel(**kwargs)
+            small = self.server_model
+            large = self.server_model
+
+        self.agent = CoTReActAgent(
+            small_model_fn=small,
+            large_model_fn=large,
+            rag_retriever=self.rag_retriever,
+            max_iterations=CFG.agent.max_iterations,
+            reflection_memory=reflection_memory,
+            skill_manager=skill_manager,
+            session_store=session_store,
+            memory_namespace=namespace,
+        )
+        logger.info(f"[AppState] Agent built in {mode} mode for namespace '{namespace}'")
 
     def init_sandbox(
         self,
@@ -791,6 +886,32 @@ class AppState:
 
 # Global state
 state = AppState()
+
+
+# ==================== Namespace Path Helper ====================
+
+def _sanitize_namespace(ns: str) -> str:
+    """Sanitize namespace string for use in path components."""
+    import re
+    # Allow alphanum, dash, underscore; collapse others to underscore
+    safe = re.sub(r'[^a-zA-Z0-9_\-]', '_', ns)
+    # Collapse multiple underscores
+    safe = re.sub(r'_+', '_', safe)
+    # Strip leading/trailing underscores
+    safe = safe.strip('_')
+    # Max length 64 chars
+    return safe[:64] or "default"
+
+
+def _get_memory_dir(namespace: str = "default") -> Path:
+    """
+    Resolve the base memory directory for a given namespace.
+    All persistent memory files (reflection, skills, e_pool, x_pool)
+    live under runs/{namespace}/ when namespace is non-default.
+    """
+    ns = _sanitize_namespace(namespace or "default")
+    base = Path(CFG.memory.reflection_memory_path).parent  # ./runs
+    return base / ns
 
 
 # ==================== Helper: Code Execution (Sandbox) ====================
@@ -920,8 +1041,14 @@ def health():
         mode=state.mode,
         model_loaded=(state.ollama_model.available if state.mode == "local"
                       else (state.server_model.available if state.server_model else False)),
-        memory_l2=state.reflection_memory.size if state.reflection_memory else 0,
-        memory_l3=state.skill_manager.active_count if state.skill_manager else 0,
+        memory_l2=sum(
+            m["reflection_memory"].size
+            for m in state._namespace_memories.values()
+        ),
+        memory_l3=sum(
+            m["skill_manager"].active_count
+            for m in state._namespace_memories.values()
+        ),
         knowledge_base_size=(
             len(state.rag_retriever.knowledge_base)
             if state.rag_retriever and state.rag_retriever.knowledge_base else 0
@@ -940,12 +1067,46 @@ def fix_bug(req: FixRequest, key_info: dict = Depends(rate_check)):
 
     All sessions are recorded to disk and metrics are collected via SessionManager.
 
+    Memory isolation: when memory_namespace is set, all persistent memory
+    (reflection, skills, e_pool, x_pool) is stored under runs/{namespace}/.
+    This allows different API key owners to have completely isolated memories.
+
     Requires: X-API-Key header.
     """
     if not state.agent:
         raise HTTPException(status_code=503, detail="Agent not initialized. Set mode via --mode on startup.")
 
     try:
+        # Resolve namespace: explicit > key owner > default
+        namespace = req.memory_namespace
+        if not namespace and key_info:
+            owner = key_info.get("owner", "")
+            if owner:
+                namespace = _sanitize_namespace(owner)
+
+        effective_ns = namespace or "default"
+
+        # Ensure agent matches the namespace
+        current_ns = getattr(state.agent, '_memory_namespace', None)
+        if current_ns != effective_ns:
+            state.build_agent_for_namespace(
+                state.mode,
+                namespace=effective_ns,
+                model_name=(
+                    getattr(state.ollama_model, 'model_name', None)
+                    if state.mode == "local" else None
+                ),
+                base_url=(
+                    getattr(state.ollama_model, 'base_url', None)
+                    if state.mode == "local" else None
+                ),
+            ) if state.mode == "local" else state.build_agent_for_namespace(
+                state.mode,
+                namespace=effective_ns,
+                model_path=getattr(state.server_model, 'model_path', None),
+                lora_path=getattr(state.server_model, 'lora_path', None),
+            )
+
         test_dicts = [tc.model_dump() for tc in req.test_cases]
 
         # Record session start in SessionManager
@@ -954,6 +1115,7 @@ def fix_bug(req: FixRequest, key_info: dict = Depends(rate_check)):
             state.session_manager.start_session(session_id, metadata={
                 "bug_type": req.bug_description[:50],
                 "language": req.language,
+                "memory_namespace": effective_ns,
             })
 
         result = state.agent.fix_bug(
@@ -987,6 +1149,7 @@ def fix_bug(req: FixRequest, key_info: dict = Depends(rate_check)):
                     "rag_hit": False,
                     "e_pool_hit": False,
                     "x_pool_hit": False,
+                    "memory_namespace": effective_ns,
                 }
             )
 
@@ -1010,6 +1173,7 @@ def fix_bug(req: FixRequest, key_info: dict = Depends(rate_check)):
                 }
                 for it in result.iterations
             ],
+            memory_namespace=effective_ns,
             error=err if not verified else None,
         )
 
@@ -1032,17 +1196,15 @@ def start_eval(req: EvalRequest, background_tasks: BackgroundTasks,
 
     # Reset memory if requested
     if req.reset_memory:
-        state.reflection_memory = ReflectionMemory(
-            memory_path="./runs/reflection_memory.json",
-            embedding_model_name="all-MiniLM-L6-v2",
-        )
-        state.skill_manager = SkillManager(
-            skills_dir="./runs/skills",
-            embedding_model_name="all-MiniLM-L6-v2",
-        )
+        # Reset only the "default" namespace for backward compat in eval context
+        mem = state._get_or_create_memory_for_namespace("default")
+        mem["reflection_memory"].reflections.clear()
+        mem["reflection_memory"].save()
+        mem["skill_manager"].skills.clear()
+        mem["skill_manager"].save()
         if state.agent:
-            state.agent.reflection_memory = state.reflection_memory
-            state.agent.skill_manager = state.skill_manager
+            state.agent.reflection_memory = mem["reflection_memory"]
+            state.agent.skill_manager = mem["skill_manager"]
 
     state.eval_jobs[eval_id] = {
         "status": "pending",
@@ -1171,33 +1333,55 @@ def get_session(session_id: str, key_info: dict = Depends(rate_check)):
 
 @app.get("/memory/stats")
 def memory_stats(key_info: dict = Depends(require_admin)):
-    """Get L2 and L3 memory statistics."""
+    """Get L2 and L3 memory statistics across all namespaces."""
+    stats_by_ns = {}
+    for ns, mem in state._namespace_memories.items():
+        stats_by_ns[ns] = {
+            "l2_reflection_count": mem["reflection_memory"].size,
+            "l3_skill_count": mem["skill_manager"].active_count,
+        }
+
+    # Aggregate for backward-compatible top-level keys
+    total_reflections = sum(m["reflection_memory"].size for m in state._namespace_memories.values())
+    total_skills = sum(m["skill_manager"].active_count for m in state._namespace_memories.values())
+
+    def _build_reflection_entries(mem):
+        return [
+            {
+                "pattern": r.bug_pattern,
+                "usefulness": round(r.usefulness_score, 3),
+                "verified": r.verification_count,
+                "helpful": r.helpful_count,
+            }
+            for r in (mem["reflection_memory"].reflections or [])
+        ]
+
+    def _build_skill_entries(mem):
+        return [
+            {
+                "name": s.name,
+                "usefulness": round(s.usefulness, 3),
+                "success": s.success_count,
+                "failure": s.failure_count,
+                "is_stale": s.is_stale,
+            }
+            for s in (mem["skill_manager"].skills or [])
+        ]
+
+    # Default namespace stats for backward compat
+    default_mem = state._namespace_memories.get("default", {})
     return {
+        "by_namespace": stats_by_ns,
+        "total_reflections": total_reflections,
+        "total_skills": total_skills,
         "l2_reflection_memory": {
-            "total_entries": state.reflection_memory.size if state.reflection_memory else 0,
-            "entries": [
-                {
-                    "pattern": r.bug_pattern,
-                    "usefulness": round(r.usefulness_score, 3),
-                    "verified": r.verification_count,
-                    "helpful": r.helpful_count,
-                }
-                for r in (state.reflection_memory.reflections if state.reflection_memory else [])
-            ],
+            "total_entries": default_mem.get("reflection_memory", type("X", (), {"size": 0})()).size,
+            "entries": _build_reflection_entries(default_mem),
         },
         "l3_skill_manager": {
-            "active_count": state.skill_manager.active_count if state.skill_manager else 0,
-            "archived_count": state.skill_manager.archived_count if state.skill_manager else 0,
-            "skills": [
-                {
-                    "name": s.name,
-                    "usefulness": round(s.usefulness, 3),
-                    "success": s.success_count,
-                    "failure": s.failure_count,
-                    "is_stale": s.is_stale,
-                }
-                for s in (state.skill_manager.skills if state.skill_manager else [])
-            ],
+            "active_count": default_mem.get("skill_manager", type("X", (), {"active_count": 0})()).active_count,
+            "archived_count": default_mem.get("skill_manager", type("X", (), {"archived_count": 0})()).archived_count,
+            "skills": _build_skill_entries(default_mem),
         },
     }
 
@@ -1224,7 +1408,11 @@ def knowledge_stats():
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint for frontend connectivity test."""
+    """
+    Health check endpoint for frontend connectivity test.
+    NOTE: /health only checks API server is up. For full system readiness,
+    use /ready which verifies agent, model, and memory are all initialized.
+    """
     return {"status": "ok", "version": "1.0.0"}
 
 @app.get("/sessions")
@@ -1524,15 +1712,12 @@ if __name__ == "__main__":
             return {"owner": "dev", "is_admin": True}
         logger.warning("!!! Auth DISABLED (--no-auth) — do not use in production !!!")
 
-    # Initialize memory components
-    state.reflection_memory = ReflectionMemory(
-        memory_path=args.memory_path,
-        embedding_model_name=args.embedding_model,
-    )
-    state.skill_manager = SkillManager(
-        skills_dir=args.skills_dir,
-        embedding_model_name=args.embedding_model,
-    )
+    # Initialize memory components for "default" namespace (lazy - only create when needed)
+    state._embedding_model_name = args.embedding_model
+    # Pre-warm default namespace memory so startup state is consistent
+    default_mem = state._get_or_create_memory_for_namespace("default")
+    default_mem["reflection_memory"]  # access to ensure created
+    default_mem["skill_manager"]
     state.rag_retriever = BugFixRetriever(knowledge_base_path=args.rag_path)
 
     if args.reload:
@@ -1542,16 +1727,35 @@ if __name__ == "__main__":
         state.skill_manager.save_all()
         logger.info("Memory reset.")
 
-    # Build agent
+    # Build agent for "default" namespace (backward compat)
+    # Override default memory paths from CLI args if provided
+    if args.memory_path != CFG.memory.reflection_memory_path:
+        default_mem_dir = _get_memory_dir("default")
+        # When CLI overrides memory path, point the default namespace to that dir
+        state._namespace_memories["default"] = {
+            "reflection_memory": ReflectionMemory(
+                memory_path=args.memory_path,
+                embedding_model_name=args.embedding_model,
+            ),
+            "skill_manager": SkillManager(
+                skills_dir=args.skills_dir,
+                embedding_model_name=args.embedding_model,
+            ),
+            "session_store": SessionStore(sessions_dir=str(default_mem_dir / "sessions")),
+            "e_pool_path": str(default_mem_dir / "e_pool.json"),
+            "x_pool_path": str(default_mem_dir / "x_pool.json"),
+        }
     if args.mode == "local":
-        state.build_agent(
+        state.build_agent_for_namespace(
             "local",
+            namespace="default",
             model_name=args.ollama_model,
             base_url=args.ollama_url,
         )
     else:
-        state.build_agent(
+        state.build_agent_for_namespace(
             "server",
+            namespace="default",
             model_path=args.model,
             lora_path=args.lora,
             use_quantization=args.quantize,

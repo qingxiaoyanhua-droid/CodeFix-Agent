@@ -2,7 +2,7 @@
 """
 Multi-Agent Base Classes and Message Protocol
 =============================================
-所有 Agent 的共同接口、消息类型和共享数据结构。
+所有Agent 的共同接口、消息类型和共享数据结构。
 """
 
 from __future__ import annotations
@@ -10,10 +10,14 @@ from __future__ import annotations
 import time
 import uuid
 import hashlib
+import logging
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Set
+from typing import List, Dict, Optional, Any, Set, Callable
 from enum import Enum
 from abc import ABC, abstractmethod
+
+
+logger = logging.getLogger(__name__)
 
 
 # ==================== 消息类型 ====================
@@ -32,21 +36,21 @@ class AgentMessage:
     """
     Agent 间传递的统一消息格式。
 
-    设计参考 MAC 论文的协作模式：每个 Agent 只负责自己的职责，
+    设计参考MAC 论文的协作模式：每个 Agent 只负责自己的职责，
     通过消息队列进行通信，避免单点中央化调度。
     """
     msg_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     msg_type: MessageType = MessageType.REQUEST
-    sender: str = ""       # 发送者 Agent 名称
-    recipient: str = ""     # 接收者 Agent 名称，"" 表示广播
+    sender: str = ""       # 发送方Agent 名称
+    recipient: str = ""     # 接收方Agent 名称，"* 表示广播
     content: Dict[str, Any] = field(default_factory=dict)
 
     # 元信息
     timestamp: float = field(default_factory=time.time)
-    related_task_id: str = ""  # 关联的任务 ID
-    in_reply_to: str = ""      # 回复的消息 ID（用于追踪对话）
+    related_task_id: str = ""  # 关联的任务ID
+    in_reply_to: str = ""      # 回复的消息ID（用于追踪对话）
 
-    # 执行结果（用于 RESPONSE）
+    # 执行结果（用于RESPONSE）
     status: str = "ok"    # ok | error | partial
     result: Any = None
     error: Optional[str] = None
@@ -98,9 +102,9 @@ class AgentProfile:
 @dataclass
 class SharedContext:
     """
-    所有 Agent 共享的任务上下文。
+    所有Agent 共享的任务上下文。
 
-    通过 Orchestrator 管理，Solver/Reviewer/MemoryAgent 都可以读写。
+    通过 Orchestrator 管理，Solver/Reviewer/MemoryAgent 都可以读写，
     每个任务有独立的上下文实例。
     """
     task_id: str
@@ -110,7 +114,7 @@ class SharedContext:
     language: str = "python"
     test_cases: List[Dict] = field(default_factory=list)
 
-    # 各 Agent 的输出
+    # 各Agent 的输出
     solver_output: Optional[Dict] = None    # Solver 生成的代码和 CoT
     reviewer_output: Optional[Dict] = None  # Reviewer 的审查结果
     memory_output: Optional[Dict] = None    # Memory Agent 检索的记忆
@@ -120,10 +124,10 @@ class SharedContext:
     max_rounds: int = 3
     status: str = "init"  # init | planning | solving | reviewing | memory | done | failed
 
-    # 轨迹（用于 GRPO 训练数据收集）
+    # 轨迹（用于GRPO 训练数据收集）
     trajectory: List[Dict] = field(default_factory=list)
 
-    # 协作追踪
+    # 协作追踪（所有路由的消息）
     message_history: List[AgentMessage] = field(default_factory=list)
 
     def record_step(self, agent: str, action: str, result: Any):
@@ -141,19 +145,99 @@ class SharedContext:
         ).hexdigest()[:16]
 
 
+# ==================== A2A 路由权限 ====================
+
+# 允许的 A2A 通信路径（supervisor 监管下的最小集合）
+A2A_ALLOWED_ROUTES: Set[tuple[str, str]] = {
+    # solver -> memory: memory query / result
+    ("solver", "memory"),
+    # reviewer -> solver: review feedback / response or ack
+    ("reviewer", "solver"),
+}
+
+
+class A2ARouter:
+    """
+    Supervisor-controlled A2A message router.
+
+    Responsibilities:
+      - Permission enforcement: only allow explicitly registered routes
+      - Message injection: append routed messages to SharedContext.message_history
+      - Routing: forward messages to target agent's handle_message()
+
+    This is the minimal supervised A2A layer for interview/demo value.
+    It does NOT replace orchestrator-driven phase ordering; it only enables
+    controlled direct communication for specific flows.
+    """
+
+    def __init__(self):
+        self._handlers: Dict[str, Callable[[AgentMessage], Optional[AgentMessage]]] = {}
+
+    def register(self, agent_name: str,
+                 handler: Callable[[AgentMessage], Optional[AgentMessage]]) -> None:
+        """Register an agent handler for A2A routing."""
+        self._handlers[agent_name] = handler
+
+    def _is_route_allowed(self, sender: str, recipient: str) -> bool:
+        """Check if sender -> recipient route is permitted."""
+        return (sender, recipient) in A2A_ALLOWED_ROUTES
+
+    def route(self, message: AgentMessage,
+              context: Optional[SharedContext] = None) -> Optional[AgentMessage]:
+        """
+        Route a message from sender to recipient if permitted.
+
+        Args:
+            message: The A2A message to route.
+            context: SharedContext for message_history tracking.
+
+        Returns:
+            Response from target agent, or None if not allowed / not found.
+        """
+        sender = message.sender
+        recipient = message.recipient
+
+        if not self._is_route_allowed(sender, recipient):
+            logger.warning(
+                f"[A2ARouter] Blocked A2A route: {sender} -> {recipient}"
+            )
+            return None
+
+        handler = self._handlers.get(recipient)
+        if handler is None:
+            logger.warning(f"[A2ARouter] No handler for agent: {recipient}")
+            return None
+
+        response = handler(message)
+
+        # Track routed message in history
+        if context is not None:
+            context.message_history.append(message)
+
+        logger.debug(
+            f"[A2ARouter] Routed {message.msg_type.value} {message.msg_id}: "
+            f"{sender} -> {recipient}"
+        )
+        return response
+
+    def unregister(self, agent_name: str) -> None:
+        """Unregister an agent handler."""
+        self._handlers.pop(agent_name, None)
+
+
 # ==================== Agent 基类 ====================
 
 class BaseAgent(ABC):
     """
-    所有 Agent 的抽象基类。
+    所有Agent 的抽象基类。
 
     每个 Agent 有：
     - name: 名称
     - profile: 能力配置
     - handle(message): 处理消息
-    - run(context): 直接运行（Orchestrator 调）
+    - run(context): 直接运行（Orchestrator 调用）
 
-    Agent 之间不直接通信，统一通过 Orchestrator 路由消息。
+    Agent 之间通过 A2ARouter 路由消息，不直接 call each other.
     """
 
     def __init__(self, name: str, profile: AgentProfile):
@@ -176,27 +260,42 @@ class BaseAgent(ABC):
 
     def send_message(self, to: str, content: Dict[str, Any],
                      msg_type: MessageType = MessageType.REQUEST,
-                     in_reply_to: str = "") -> AgentMessage:
-        """构造发送给另一个 Agent 的消息"""
+                     in_reply_to: str = "",
+                     related_task_id: str = "") -> AgentMessage:
+        """Construct a message to another agent (does NOT send directly)."""
         return AgentMessage(
             msg_type=msg_type,
             sender=self.name,
             recipient=to,
             content=content,
             in_reply_to=in_reply_to,
+            related_task_id=related_task_id,
         )
+
+    def route_message(
+        self,
+        message: AgentMessage,
+        router: A2ARouter,
+        context: Optional[SharedContext] = None,
+    ) -> Optional[AgentMessage]:
+        """
+        Route a message via the A2ARouter.
+
+        This is the supervised A2A entry point: the router enforces permissions
+        and tracks the message in context.message_history.
+        """
+        return router.route(message, context)
 
     def handle_message(self, message: AgentMessage) -> Optional[AgentMessage]:
         """
-        处理收到的消息。子类可覆盖此方法实现异步消息处理。
-
-        默认实现：将消息加入队列，不同步响应。
+        Handle an incoming A2A message. Subclasses can override to implement
+        custom message processing.
         """
         self._pending_messages.append(message)
         return None
 
     def pop_messages(self) -> List[AgentMessage]:
-        """取出所有待处理消息"""
+        """Retrieve and clear pending messages."""
         messages = self._pending_messages
         self._pending_messages = []
         return messages

@@ -20,6 +20,7 @@ from agents.base_agent import (
     AgentMessage,
     MessageType,
     SharedContext,
+    A2ARouter,
 )
 from agents.memory_agent import MemoryAgent, MemoryQuery, MemoryResult
 from agents.reviewer_agent import (
@@ -45,6 +46,7 @@ __all__ = [
     "AgentMessage",
     "MessageType",
     "SharedContext",
+    "A2ARouter",
     # Agents
     "MemoryAgent",
     "MemoryQuery",

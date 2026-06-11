@@ -73,6 +73,9 @@ class MemoryConfig:
     log_dir: str = "logs"
     audit_log_max_bytes: int = 10 * 1024 * 1024  # 10MB per audit log file
     audit_log_max_lines: int = 100000  # rotate if exceeds this many lines
+    # Redis session store (optional)
+    redis_url: Optional[str] = None  # e.g. "redis://localhost:6379/0"
+    session_redis_enabled: bool = False
 
 
 @dataclass
@@ -210,6 +213,10 @@ class Config:
             "AUDIT_LOG_MAX_BYTES", str(self.memory.audit_log_max_bytes)))
         self.memory.audit_log_max_lines = int(os.environ.get(
             "AUDIT_LOG_MAX_LINES", str(self.memory.audit_log_max_lines)))
+        # Redis session store
+        self.memory.redis_url = os.environ.get("REDIS_URL")
+        self.memory.session_redis_enabled = os.environ.get(
+            "SESSION_REDIS_ENABLED", "false").lower() == "true"
 
         # Training config
         self.training.output_dir = os.environ.get(

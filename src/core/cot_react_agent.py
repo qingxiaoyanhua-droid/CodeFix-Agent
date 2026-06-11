@@ -1487,6 +1487,300 @@ class SessionStore:
             json.dump(meta, f, ensure_ascii=False, indent=2)
 
 
+# ==================== Redis Session Store (Optional) ====================
+# Lazy import — only activated when SESSION_REDIS_ENABLED=true / REDIS_URL set
+
+_redis: Optional[Any] = None   # lazily initialised client
+_redis_available: bool = False  # True once confirmed working
+
+
+def _get_redis_client(redis_url: str):
+    """
+    Lazily connect to Redis.  Cached at module level so all stores share one pool.
+    Returns (client, error_message).  client is None on failure.
+    """
+    global _redis
+    if _redis is not None:
+        return _redis, None
+    try:
+        import redis as _redis_mod
+        client = _redis_mod.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=5,
+        )
+        client.ping()          # verify connection
+        _redis = client
+        return client, None
+    except Exception as e:
+        _redis = None
+        return None, str(e)
+
+
+class RedisSessionStore:
+    """
+    Drop-in Redis-backed replacement for SessionStore.
+
+    Key layout (namespace-aware):
+        session:{ns}:{session_id}       – JSON list of events
+        session:{ns}:{session_id}:meta  – JSON object of session metadata
+        session:{ns}:{session_id}:state – JSON object of checkpoint state
+        session:{ns}:idx                 – SET of active session IDs (for list_sessions)
+
+    Falls back to a wrapped FileSessionStore when Redis is unavailable.
+
+    Usage:
+        # In api_server.py AppState or factory:
+        store = RedisSessionStore(redis_url="redis://localhost:6379/0",
+                                  namespace="default")
+        # Or via factory:
+        store = SessionStore.create_redis_store(redis_url="redis://localhost:6379/0",
+                                                namespace="default")
+    """
+
+    # TTL: 7 days so abandoned sessions don't clutter Redis
+    DEFAULT_TTL_SECONDS = 7 * 24 * 3600
+
+    def __init__(
+        self,
+        redis_url: str,
+        namespace: str = "default",
+        fallback_sessions_dir: str = "./runs/sessions",
+        ttl_seconds: int = DEFAULT_TTL_SECONDS,
+    ):
+        self.namespace = namespace
+        self.ttl_seconds = ttl_seconds
+        self._redis_url = redis_url
+
+        client, err = _get_redis_client(redis_url)
+        if client is None:
+            # Graceful fallback — log warning and delegate to file store
+            import logging as _logging
+            _logging.getLogger("cot_react_agent").warning(
+                f"[RedisSessionStore] Redis unavailable ({err}), "
+                f"falling back to file store at {fallback_sessions_dir}"
+            )
+            self._redis = None
+            self._fallback = SessionStore(sessions_dir=fallback_sessions_dir)
+        else:
+            self._redis = client
+            self._fallback = None
+
+    # ---- Redis key helpers ----
+
+    def _ns_prefix(self) -> str:
+        safe = self.namespace.replace(":", "_")
+        return f"session:{safe}"
+
+    def _event_key(self, session_id: str) -> str:
+        return f"{self._ns_prefix()}:{session_id}"
+
+    def _meta_key(self, session_id: str) -> str:
+        return f"{self._ns_prefix()}:{session_id}:meta"
+
+    def _state_key(self, session_id: str) -> str:
+        return f"{self._ns_prefix()}:{session_id}:state"
+
+    def _idx_key(self) -> str:
+        return f"{self._ns_prefix()}:idx"
+
+    # ---- Delegation ----
+
+    def _check_redis(self):
+        if self._redis is None:
+            raise RuntimeError(
+                "Redis unavailable — use file fallback directly "
+                "via SessionStore(sessions_dir=...)"
+            )
+
+    # ---- Public API (mirrors SessionStore) ----
+
+    @property
+    def sessions_dir(self):
+        """Expose sessions_dir for compatibility with code that checks .exists()."""
+        return self._fallback.sessions_dir if self._fallback else Path("memory")
+
+    def create_session(self, session_id: str, metadata: dict = None) -> str:
+        if self._redis is not None:
+            meta = {
+                "session_id": session_id,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "metadata": metadata or {},
+            }
+            pipe = self._redis.pipeline()
+            pipe.set(self._event_key(session_id), "[]")
+            pipe.set(self._meta_key(session_id), json.dumps(meta, ensure_ascii=False))
+            pipe.sadd(self._idx_key(), session_id)
+            pipe.expire(self._event_key(session_id), self.ttl_seconds)
+            pipe.expire(self._meta_key(session_id), self.ttl_seconds)
+            pipe.execute()
+            return session_id
+        return self._fallback.create_session(session_id, metadata)
+
+    def append_event(self, session_id: str, event: dict) -> None:
+        if self._redis is not None:
+            self._check_redis()
+            event_with_ts = {"timestamp": datetime.now().isoformat(), **event}
+            pipe = self._redis.pipeline()
+            pipe.rpush(self._event_key(session_id), json.dumps(event_with_ts, ensure_ascii=False))
+            pipe.expire(self._event_key(session_id), self.ttl_seconds)
+            # Update updated_at in meta
+            meta_raw = self._redis.get(self._meta_key(session_id))
+            if meta_raw:
+                try:
+                    meta = json.loads(meta_raw)
+                    meta["updated_at"] = datetime.now().isoformat()
+                    pipe.set(self._meta_key(session_id), json.dumps(meta, ensure_ascii=False), ex=self.ttl_seconds)
+                except Exception:
+                    pass
+            pipe.execute()
+            return
+        self._fallback.append_event(session_id, event)
+
+    def append_user_message(self, session_id: str, content: str, metadata: dict = None) -> None:
+        self.append_event(session_id, {
+            "type": "user_message",
+            "content": content,
+            "metadata": metadata or {},
+        })
+
+    def append_model_output(self, session_id: str, content: str,
+                            tool_uses: list = None, metadata: dict = None) -> None:
+        self.append_event(session_id, {
+            "type": "model_output",
+            "content": content,
+            "tool_uses": tool_uses or [],
+            "metadata": metadata or {},
+        })
+
+    def append_tool_result(self, session_id: str, tool_name: str,
+                           result: dict, success: bool,
+                           metadata: dict = None) -> None:
+        self.append_event(session_id, {
+            "type": "tool_result",
+            "tool_name": tool_name,
+            "result": result,
+            "success": success,
+            "metadata": metadata or {},
+        })
+
+    def append_compact_boundary(self, session_id: str, summary: str,
+                                tokens_freed: int, metadata: dict = None) -> None:
+        self.append_event(session_id, {
+            "type": "compact_boundary",
+            "summary": summary,
+            "tokens_freed": tokens_freed,
+            "metadata": metadata or {},
+        })
+
+    def append_agent_result(self, session_id: str, agent_result: Any) -> None:
+        result_dict = {
+            "success": agent_result.success,
+            "fixed_code": agent_result.fixed_code,
+            "total_iterations": agent_result.total_iterations,
+            "large_model_calls": agent_result.large_model_calls,
+            "total_time_ms": agent_result.total_time_ms,
+            "used_past_reflections": agent_result.used_past_reflections,
+            "used_skills": agent_result.used_skills,
+            "skill_extracted": getattr(agent_result, "skill_extracted", None),
+            "reflection": None,
+        }
+        if agent_result.reflection:
+            r = agent_result.reflection
+            result_dict["reflection"] = {
+                "bug_pattern": r.bug_pattern,
+                "lesson_learned": r.lesson_learned,
+                "what_not_to_do": r.what_not_to_do,
+                "root_cause": r.root_cause,
+            }
+        self.append_event(session_id, {
+            "type": "agent_result",
+            "result": result_dict,
+        })
+
+    def save_checkpoint(self, session_id: str, state: dict) -> None:
+        if self._redis is not None:
+            self._check_redis()
+            state["checkpoint_at"] = datetime.now().isoformat()
+            self._redis.set(
+                self._state_key(session_id),
+                json.dumps(state, ensure_ascii=False),
+                ex=self.ttl_seconds,
+            )
+            return
+        self._fallback.save_checkpoint(session_id, state)
+
+    def load_checkpoint(self, session_id: str) -> Optional[dict]:
+        if self._redis is not None:
+            self._check_redis()
+            raw = self._redis.get(self._state_key(session_id))
+            if raw:
+                return json.loads(raw)
+            return None
+        return self._fallback.load_checkpoint(session_id)
+
+    def load_session(self, session_id: str) -> List[dict]:
+        if self._redis is not None:
+            self._check_redis()
+            raw = self._redis.get(self._event_key(session_id))
+            if raw is None:
+                return []
+            events_raw = json.loads(raw)
+            return [json.loads(e) if isinstance(e, str) else e for e in events_raw]
+        return self._fallback.load_session(session_id)
+
+    def get_session(self, session_id: str) -> Optional[dict]:
+        """Return the full session dict for /sessions/{id} compatibility."""
+        events = self.load_session(session_id)
+        if self._redis is not None:
+            self._check_redis()
+            meta_raw = self._redis.get(self._meta_key(session_id))
+            meta = json.loads(meta_raw) if meta_raw else {}
+        else:
+            meta = self._fallback.get_session(session_id) or {}
+        return {"events": events, "metadata": meta.get("metadata", meta)}
+
+    def list_sessions(self) -> List[dict]:
+        if self._redis is not None:
+            self._check_redis()
+            sids = self._redis.smembers(self._idx_key())
+            result = []
+            for sid in sids:
+                raw = self._redis.get(self._meta_key(sid))
+                if raw:
+                    result.append(json.loads(raw))
+                else:
+                    result.append({"session_id": sid})
+            return sorted(result, key=lambda x: x.get("updated_at", ""), reverse=True)
+        return self._fallback.list_sessions()
+
+    def fork_session(self, parent_id: str, fork_id: str) -> str:
+        if self._redis is not None:
+            self._check_redis()
+            self.create_session(fork_id, metadata={"forked_from": parent_id})
+            for event in self.load_session(parent_id):
+                self.append_event(fork_id, event)
+            return fork_id
+        return self._fallback.fork_session(parent_id, fork_id)
+
+
+# Add a factory method to SessionStore so callers don't need to import RedisSessionStore directly
+def _create_redis_store(redis_url: str, namespace: str, fallback_sessions_dir: str):
+    """Factory: build a RedisSessionStore (or fall back to file SessionStore)."""
+    return RedisSessionStore(
+        redis_url=redis_url,
+        namespace=namespace,
+        fallback_sessions_dir=fallback_sessions_dir,
+    )
+
+
+# Monkey-patch the factory onto SessionStore so external code can call:
+#   SessionStore.create_redis_store(...)
+SessionStore.create_redis_store = staticmethod(_create_redis_store)
+
+
 # ==================== Compaction Pipeline (Claude-style 5-Layer Context Management) ====================
 
 class CompactionPipeline:

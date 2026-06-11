@@ -579,3 +579,98 @@ class RotatingAuditLogger:
         for _ in self.log_dir.glob("audit_*.jsonl"):
             files += 1
         return {"total_requests": total, "files_scanned": files}
+
+
+# ==================== RedisSessionStore Tests ====================
+
+class TestRedisSessionStore:
+    """Tests for RedisSessionStore key layout and fallback."""
+
+    def test_key_layout(self):
+        """Redis keys should follow expected naming conventions."""
+        import tempfile
+        from pathlib import Path
+
+        # Patch _get_redis_client so Redis is unavailable, then build store
+        with patch("src.core.cot_react_agent._get_redis_client",
+                   return_value=(None, "mock unavailable")):
+            # Reload so patch takes effect
+            from src.core import cot_react_agent
+            import importlib
+            importlib.reload(cot_react_agent)
+
+            from src.core.cot_react_agent import RedisSessionStore
+            with tempfile.TemporaryDirectory() as tmp:
+                store = RedisSessionStore(
+                    redis_url="redis://localhost:6379/0",
+                    namespace="test-ns",
+                    fallback_sessions_dir=tmp,
+                )
+
+                # Verify key structure
+                assert store._ns_prefix() == "session:test-ns"
+                assert store._event_key("sid-001") == "session:test-ns:sid-001"
+                assert store._meta_key("sid-001") == "session:test-ns:sid-001:meta"
+                assert store._state_key("sid-001") == "session:test-ns:sid-001:state"
+                assert store._idx_key() == "session:test-ns:idx"
+
+    def test_fallback_to_file_when_redis_unavailable(self):
+        """RedisSessionStore should delegate to file store when Redis is unreachable."""
+        import tempfile
+        from pathlib import Path
+
+        with patch("src.core.cot_react_agent._get_redis_client",
+                   return_value=(None, "mock unavailable")):
+            from src.core import cot_react_agent
+            import importlib
+            importlib.reload(cot_react_agent)
+
+            from src.core.cot_react_agent import RedisSessionStore
+            with tempfile.TemporaryDirectory() as tmp:
+                store = RedisSessionStore(
+                    redis_url="redis://invalid-host:9999",
+                    namespace="default",
+                    fallback_sessions_dir=tmp,
+                )
+
+                # Should have fallen back silently
+                assert store._redis is None
+                assert store._fallback is not None
+
+                # Operations should still work via fallback
+                sid = store.create_session("fallback-test", metadata={"note": "via fallback"})
+                assert sid == "fallback-test"
+
+                store.append_event("fallback-test", {"type": "ping"})
+                events = store.load_session("fallback-test")
+                assert len(events) == 1
+
+                sessions = store.list_sessions()
+                assert any(s["session_id"] == "fallback-test" for s in sessions)
+
+    def test_redis_client_lazy_init(self):
+        """Redis client should not be created until first use."""
+        import tempfile
+
+        with patch("src.core.cot_react_agent._get_redis_client",
+                   return_value=(None, "mock unavailable")):
+            from src.core import cot_react_agent
+            import importlib
+            importlib.reload(cot_react_agent)
+
+            # Access _redis module-level variable before and after __init__
+            prev = cot_react_agent._redis
+            cot_react_agent._redis = None  # reset module-level cache
+
+            try:
+                with tempfile.TemporaryDirectory() as tmp:
+                    # __init__ should NOT connect — _redis stays None
+                    from src.core.cot_react_agent import RedisSessionStore
+                    _ = RedisSessionStore(
+                        redis_url="redis://localhost:6379/0",
+                        namespace="default",
+                        fallback_sessions_dir=tmp,
+                    )
+                    assert cot_react_agent._redis is None
+            finally:
+                cot_react_agent._redis = prev  # restore

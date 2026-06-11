@@ -19,6 +19,12 @@ Usage:
     # Recovery
     if sm.has_incomplete_session("bug-123"):
         state = sm.load_checkpoint("bug-123")
+
+Redis Backend (optional):
+    export SESSION_BACKEND=redis
+    export REDIS_URL=redis://localhost:6379/0
+    # Optional TTL (seconds), default 86400 (24h)
+    export SESSION_BACKEND_TTL=86400
 """
 
 from __future__ import annotations
@@ -26,17 +32,184 @@ from __future__ import annotations
 import json
 import os
 import time
-import hashlib
 import logging
 import shutil
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Protocol, runtime_checkable
 from threading import Lock
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
+
+
+# ==================== Session Backend Protocol ====================
+
+@runtime_checkable
+class SessionBackend(Protocol):
+    """Abstract protocol for session storage backends."""
+
+    def save_session(self, session_id: str, data: Dict) -> None: ...
+    def load_session(self, session_id: str) -> Optional[Dict]: ...
+    def delete_session(self, session_id: str) -> None: ...
+    def list_sessions(self) -> List[Dict]: ...
+    def is_available(self) -> bool: ...
+
+
+class FileSessionBackend:
+    """File-system backed session storage (the original default)."""
+
+    def __init__(self, checkpoint_dir: Path):
+        self.checkpoint_dir = checkpoint_dir
+
+    def save_session(self, session_id: str, data: Dict) -> None:
+        cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
+        with open(cp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def load_session(self, session_id: str) -> Optional[Dict]:
+        cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
+        if not cp_path.exists():
+            return None
+        try:
+            with open(cp_path, encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"[FileSessionBackend] Failed to load checkpoint {session_id}: {e}")
+            return None
+
+    def delete_session(self, session_id: str) -> None:
+        cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
+        if cp_path.exists():
+            cp_path.unlink()
+
+    def list_sessions(self) -> List[Dict]:
+        results = []
+        for cp_file in self.checkpoint_dir.glob("*.checkpoint.json"):
+            try:
+                with open(cp_file, encoding="utf-8") as f:
+                    data = json.load(f)
+                    results.append({
+                        "session_id": data.get("session_id", cp_file.stem.replace(".checkpoint", "")),
+                        "iteration": data.get("iteration", -1),
+                        "checkpoint_at": data.get("checkpoint_at"),
+                        "elapsed_seconds": data.get("elapsed_seconds", 0),
+                    })
+            except Exception:
+                continue
+        return sorted(results, key=lambda x: x.get("checkpoint_at", ""), reverse=True)
+
+    def is_available(self) -> bool:
+        return True
+
+
+class RedisSessionBackend:
+    """
+    Redis-backed session storage for distributed/high-availability deployments.
+
+    Key structure:
+      codefix:session:{session_id}   - checkpoint JSON
+      codefix:sessions:index         - sorted set of active session IDs by timestamp
+    """
+
+    SESSION_KEY_PREFIX = "codefix:session:"
+    SESSIONS_INDEX_KEY = "codefix:sessions:index"
+
+    def __init__(self, url: Optional[str] = None, ttl_seconds: int = 86400):
+        self.url = url or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        self.ttl_seconds = ttl_seconds
+        self._client = None
+        self._connect()
+
+    def _connect(self):
+        try:
+            import redis
+            self._client = redis.from_url(
+                self.url,
+                encoding="utf-8",
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+            )
+            self._client.ping()
+            logger.info(f"[RedisSessionBackend] Connected to {self.url}")
+        except ImportError:
+            logger.error(
+                "[RedisSessionBackend] redis package not installed. "
+                "Install with: pip install redis"
+            )
+            raise
+        except Exception as e:
+            logger.error(f"[RedisSessionBackend] Failed to connect to Redis at {self.url}: {e}")
+            raise
+
+    def _session_key(self, session_id: str) -> str:
+        return f"{self.SESSION_KEY_PREFIX}{session_id}"
+
+    def save_session(self, session_id: str, data: Dict) -> None:
+        import redis
+        key = self._session_key(session_id)
+        payload = json.dumps(data, ensure_ascii=False)
+        pipe = self._client.pipeline()
+        pipe.set(key, payload, ex=self.ttl_seconds)
+        pipe.zadd(self.SESSIONS_INDEX_KEY, {session_id: time.time()})
+        pipe.execute()
+
+    def load_session(self, session_id: str) -> Optional[Dict]:
+        key = self._session_key(session_id)
+        raw = self._client.get(key)
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            logger.warning(f"[RedisSessionBackend] Corrupt checkpoint {session_id}: {e}")
+            return None
+
+    def delete_session(self, session_id: str) -> None:
+        key = self._session_key(session_id)
+        pipe = self._client.pipeline()
+        pipe.delete(key)
+        pipe.zrem(self.SESSIONS_INDEX_KEY, session_id)
+        pipe.execute()
+
+    def list_sessions(self) -> List[Dict]:
+        session_ids = self._client.zrevrange(self.SESSIONS_INDEX_KEY, 0, -1)
+        results = []
+        for sid in session_ids:
+            data = self.load_session(sid)
+            if data:
+                results.append({
+                    "session_id": sid,
+                    "iteration": data.get("iteration", -1),
+                    "checkpoint_at": data.get("checkpoint_at"),
+                    "elapsed_seconds": data.get("elapsed_seconds", 0),
+                })
+        return results
+
+    def is_available(self) -> bool:
+        try:
+            return self._client is not None and self._client.ping()
+        except Exception:
+            return False
+
+
+def _build_backend() -> SessionBackend:
+    """
+    Build the session backend based on environment configuration.
+
+    Defaults to FileSessionBackend. Set SESSION_BACKEND=redis (and REDIS_URL)
+    to switch to Redis.
+    """
+    backend = os.environ.get("SESSION_BACKEND", "").lower()
+    if backend == "redis":
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        ttl = int(os.environ.get("SESSION_BACKEND_TTL", "86400"))
+        logger.info(f"[SessionManager] Using Redis backend: {redis_url} (TTL={ttl}s)")
+        return RedisSessionBackend(url=redis_url, ttl_seconds=ttl)
+    logger.info("[SessionManager] Using file-based session backend")
+    return None  # Caller provides the FileSessionBackend when None
 
 
 # ==================== Metrics ====================
@@ -159,8 +332,15 @@ class SessionManager:
         self._metrics = BusinessMetrics()
         self._load_metrics()
 
+        self._backend = _build_backend()
+        self._using_redis = isinstance(self._backend, RedisSessionBackend)
+        self._file_backend = FileSessionBackend(self.checkpoint_dir)
+
+        if self._backend is None:
+            self._backend = self._file_backend
+
         logger.info(
-            f"[SessionManager] Initialized. "
+            f"[SessionManager] Initialized (redis={self._using_redis}). "
             f"sessions={sessions_dir}, checkpoints={checkpoint_dir}"
         )
 
@@ -206,16 +386,17 @@ class SessionManager:
                 "metadata": metadata or entry.get("metadata", {}),
             }
 
-            # Write checkpoint file (overwritable)
-            cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
-            with open(cp_path, "w", encoding="utf-8") as f:
-                json.dump(checkpoint, f, ensure_ascii=False, indent=2)
+            try:
+                self._backend.save_session(session_id, checkpoint)
+            except Exception as e:
+                logger.warning(f"[SessionManager] Backend save failed ({type(self._backend).__name__}), "
+                               f"falling back to file: {e}")
+                self._file_backend.save_session(session_id, checkpoint)
 
             entry["last_checkpoint_at"] = now
             entry["checkpoints"] += 1
             self._last_checkpoint[session_id] = now
 
-            # Periodic full memory snapshot
             if now - self._last_memory_snapshot >= self.memory_snapshot_interval:
                 self._snapshot_memory()
                 self._last_memory_snapshot = now
@@ -299,9 +480,12 @@ class SessionManager:
             )
 
             # Clean up
-            cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
-            if cp_path.exists():
-                cp_path.unlink()
+            try:
+                self._backend.delete_session(session_id)
+            except Exception as e:
+                logger.warning(f"[SessionManager] Backend delete failed ({type(self._backend).__name__}), "
+                               f"falling back to file: {e}")
+                self._file_backend.delete_session(session_id)
 
             del self._active_sessions[session_id]
             self._last_checkpoint.pop(session_id, None)
@@ -328,38 +512,31 @@ class SessionManager:
     # ----- Recovery -----
 
     def has_incomplete_session(self, session_id: str) -> bool:
-        """Check if a checkpoint exists for recovery."""
-        cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
-        return cp_path.exists()
+        """Check if a checkpoint exists for recovery (tries backend, falls back to file)."""
+        try:
+            data = self._backend.load_session(session_id)
+            return data is not None
+        except Exception:
+            return self._file_backend.load_session(session_id) is not None
 
     def load_checkpoint(self, session_id: str) -> Optional[Dict]:
-        """Load the latest checkpoint for a session."""
-        cp_path = self.checkpoint_dir / f"{session_id}.checkpoint.json"
-        if not cp_path.exists():
-            return None
+        """Load the latest checkpoint for a session (tries backend, falls back to file)."""
         try:
-            with open(cp_path, encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.warning(f"[SessionManager] Failed to load checkpoint {session_id}: {e}")
-            return None
+            data = self._backend.load_session(session_id)
+            if data is not None:
+                return data
+        except Exception as e:
+            logger.warning(f"[SessionManager] Backend load failed ({type(self._backend).__name__}): {e}")
+        return self._file_backend.load_session(session_id)
 
     def list_incomplete_sessions(self) -> List[Dict]:
-        """List all sessions with recoverable checkpoints."""
-        results = []
-        for cp_file in self.checkpoint_dir.glob("*.checkpoint.json"):
-            try:
-                with open(cp_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                    results.append({
-                        "session_id": data.get("session_id", cp_file.stem.replace(".checkpoint", "")),
-                        "iteration": data.get("iteration", -1),
-                        "checkpoint_at": data.get("checkpoint_at"),
-                        "elapsed_seconds": data.get("elapsed_seconds", 0),
-                    })
-            except Exception:
-                continue
-        return sorted(results, key=lambda x: x.get("checkpoint_at", ""), reverse=True)
+        """List all sessions with recoverable checkpoints (tries backend, falls back to file)."""
+        try:
+            if self._backend.is_available():
+                return self._backend.list_sessions()
+        except Exception as e:
+            logger.warning(f"[SessionManager] Backend list failed: {e}")
+        return self._file_backend.list_sessions()
 
     # ----- Metrics -----
 
@@ -418,9 +595,6 @@ class SessionManager:
 
     def get_session_events(self, session_id: str) -> List[Dict]:
         """Load events from the underlying SessionStore (JSONL file)."""
-        import sys
-        from pathlib import Path as P
-
         session_file = self.sessions_dir / f"{session_id}.jsonl"
         if not session_file.exists():
             return []

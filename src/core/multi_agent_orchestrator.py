@@ -58,7 +58,7 @@ from typing import List, Dict, Optional, Any, Set
 
 from agents.base_agent import (
     BaseAgent, AgentProfile, AgentCapability,
-    SharedContext, AgentMessage, MessageType
+    SharedContext, AgentMessage, MessageType, A2ARouter
 )
 from agents.codefixer import CodeFixer, FixResult, FixStatus
 
@@ -465,6 +465,10 @@ class MultiAgentOrchestrator:
         self.enable_memory_write = enable_memory_write
         self.use_codefixer_mode = use_codefixer_mode
 
+        # ---- A2A Router: supervised agent-to-agent messaging ----
+        self.a2a_router = A2ARouter()
+        self._register_agents_for_a2a()
+
         # 循环检测器（每个任务实例独立）
         self._cycle_detector: Optional[CycleDetector] = None
         self._last_valid_result: Optional[Dict] = None  # stall 时回退用
@@ -489,7 +493,25 @@ class MultiAgentOrchestrator:
             "small_model_calls": 0,
             "large_model_calls": 0,
             "sandbox_runs": 0,
+            "a2a_routes": 0,
         }
+
+    # ==================== A2A Registration ====================
+
+    def _register_agents_for_a2a(self):
+        """Register agents with the A2A router for supervised routing."""
+        if self.solver_agent is not None:
+            self.a2a_router.register(self.solver_agent.name, self.solver_agent.handle_message)
+        if self.reviewer_agent is not None:
+            self.a2a_router.register(self.reviewer_agent.name, self.reviewer_agent.handle_message)
+        if self.memory_agent is not None:
+            self.a2a_router.register(self.memory_agent.name, self.memory_agent.handle_message)
+        if self.codefixer_agent is not None:
+            self.a2a_router.register(self.codefixer_agent.name, self.codefixer_agent.handle_message)
+
+    def get_router(self) -> A2ARouter:
+        """Expose the A2A router for agent-level route_message() calls."""
+        return self.a2a_router
 
     # ==================== 主入口 ====================
 
